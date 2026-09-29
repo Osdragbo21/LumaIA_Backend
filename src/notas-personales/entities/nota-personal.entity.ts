@@ -4,7 +4,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 @ObjectType()
-@Schema({ timestamps: { createdAt: 'fecha_creacion', updatedAt: true } })
+@Schema({ collection: 'notas_personales', timestamps: { createdAt: 'fecha_creacion', updatedAt: true } })
 export class NotaPersonal extends Document {
   @Field(() => ID)
   _id: Types.ObjectId;
@@ -20,13 +20,10 @@ export class NotaPersonal extends Document {
   @Field(() => Date)
   fecha_creacion: Date;
 
-  // Sello de tiempo para ejecución del índice TTL (retención de 30 días)
   @Field(() => Date, { nullable: true })
   @Prop({ type: Date })
   fecha_eliminacion?: Date;
 }
 
 export const NotaPersonalSchema = SchemaFactory.createForClass(NotaPersonal);
-
-// Índice TTL para destruir el documento 30 días después de ser marcado para eliminación
 NotaPersonalSchema.index({ fecha_eliminacion: 1 }, { expireAfterSeconds: 2592000 });

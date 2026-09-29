@@ -7,6 +7,12 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { join } from 'path';
 import { AppResolver } from './app.resolver';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { MedicamentosModule } from './medicamentos/medicamentos.module';
+import { CitasModule } from './citas/citas.module';
+import { NotasPersonalesModule } from './notas-personales/notas-personales.module';
+import { RegistrosTomaModule } from './registros-toma/registros-toma.module';
+import { LogsInteraccionModule } from './logs-interaccion/logs-interaccion.module';
 
 @Module({
   imports: [
@@ -28,6 +34,12 @@ import { AppResolver } from './app.resolver';
       playground: false,
       plugins: [ApolloServerPluginLandingPageLocalDefault() as any], 
     }),
+    UsuariosModule,
+    MedicamentosModule,
+    CitasModule,
+    NotasPersonalesModule,
+    RegistrosTomaModule,
+    LogsInteraccionModule,
   ],
   providers: [AppResolver],
 })

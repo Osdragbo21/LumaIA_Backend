@@ -3,7 +3,6 @@ import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-// Estados operativos que definen si se detona una alerta push
 export enum EnumEstadoToma {
   PENDIENTE = 'Pendiente',
   CONFIRMADA = 'Confirmada',
@@ -13,7 +12,7 @@ export enum EnumEstadoToma {
 registerEnumType(EnumEstadoToma, { name: 'EnumEstadoToma' });
 
 @ObjectType()
-@Schema({ timestamps: true })
+@Schema({ collection: 'registros_toma', timestamps: true })
 export class RegistroToma extends Document {
   @Field(() => ID)
   _id: Types.ObjectId;

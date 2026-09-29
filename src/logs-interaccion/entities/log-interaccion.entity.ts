@@ -4,7 +4,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 @ObjectType()
-@Schema({ timestamps: false }) // Desactivamos timestamps automáticos para usar la fecha_interaccion exacta
+@Schema({ collection: 'logs_interaccion', timestamps: false })
 export class LogInteraccion extends Document {
   @Field(() => ID)
   _id: Types.ObjectId;
