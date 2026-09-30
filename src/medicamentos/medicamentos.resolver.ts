@@ -6,22 +6,20 @@ import { MedicamentosService } from './medicamentos.service';
 
 @Resolver(() => Medicamento)
 export class MedicamentosResolver {
-  // Inyección de dependencias del servicio
   constructor(private readonly medicamentosService: MedicamentosService) {}
 
   @Query(() => [Medicamento], { name: 'obtenerMedicamentosPorUsuario' })
   async obtenerMedicamentosPorUsuario(
     @Args('usuario_id', { type: () => ID }) usuario_id: string,
   ): Promise<Medicamento[]> {
-    // Se implementará en la siguiente fase de consultas
-    return [];
+    // Retorna la lista real desde MongoDB Atlas
+    return this.medicamentosService.findAllByUserId(usuario_id);
   }
 
   @Mutation(() => Medicamento, { name: 'crearMedicamento' })
   async crearMedicamento(
     @Args('createMedicamentoInput') createMedicamentoInput: CreateMedicamentoInput,
   ): Promise<Medicamento> {
-    // Petición delegada al servicio real
     return this.medicamentosService.create(createMedicamentoInput);
   }
 }
