@@ -3,29 +3,24 @@ import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-// Definición de Roles del Sistema
-export enum EnumRol {
+export enum Enum_Rol {
   ADULTO_MAYOR = 'Adulto Mayor',
   CUIDADOR = 'Cuidador',
 }
+registerEnumType(Enum_Rol, { name: 'Enum_Rol' });
 
-registerEnumType(EnumRol, { name: 'EnumRol' });
-
-// Sub-esquema desnormalizado para acceso rápido
 @ObjectType()
 export class ContactoEmergencia {
   @Field()
   nombre_contacto: string;
-
   @Field()
   telefono: string;
-
   @Field()
   parentesco: string;
 }
 
 @ObjectType()
-@Schema({ timestamps: true })
+@Schema({ collection: 'usuarios', timestamps: true })
 export class Usuario extends Document {
   @Field(() => ID)
   _id: Types.ObjectId;
@@ -35,16 +30,16 @@ export class Usuario extends Document {
   nombre: string;
 
   @Field()
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true }) // Restricción de unicidad
   correo: string;
 
   @Field()
   @Prop({ required: true })
   password_hash: string;
 
-  @Field(() => EnumRol)
-  @Prop({ required: true, enum: EnumRol })
-  rol: EnumRol;
+  @Field(() => Enum_Rol)
+  @Prop({ required: true, enum: Enum_Rol })
+  rol: Enum_Rol;
 
   @Field(() => ID, { nullable: true })
   @Prop({ type: Types.ObjectId, ref: 'Usuario' })
@@ -55,7 +50,7 @@ export class Usuario extends Document {
   pin_vinculacion?: string;
 
   @Field()
-  @Prop({ default: true })
+  @Prop({ default: true }) // Borrado Lógico
   estado_activo: boolean;
 
   @Field(() => [String])

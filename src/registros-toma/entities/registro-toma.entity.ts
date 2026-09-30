@@ -3,13 +3,12 @@ import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export enum EnumEstadoToma {
+export enum Enum_EstadoToma {
   PENDIENTE = 'Pendiente',
   CONFIRMADA = 'Confirmada',
   OMITIDA = 'Omitida',
 }
-
-registerEnumType(EnumEstadoToma, { name: 'EnumEstadoToma' });
+registerEnumType(Enum_EstadoToma, { name: 'Enum_EstadoToma' });
 
 @ObjectType()
 @Schema({ collection: 'registros_toma', timestamps: true })
@@ -21,13 +20,13 @@ export class RegistroToma extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Medicamento', required: true })
   medicamento_id: Types.ObjectId;
 
-  @Field()
-  @Prop({ required: true })
+  @Field(() => Date)
+  @Prop({ required: true, type: Date })
   fecha_programada: Date;
 
-  @Field(() => EnumEstadoToma)
-  @Prop({ required: true, enum: EnumEstadoToma, default: EnumEstadoToma.PENDIENTE })
-  estado_toma: EnumEstadoToma;
+  @Field(() => Enum_EstadoToma)
+  @Prop({ required: true, enum: Enum_EstadoToma, default: Enum_EstadoToma.PENDIENTE })
+  estado_toma: Enum_EstadoToma;
 
   @Field(() => Date, { nullable: true })
   @Prop({ type: Date })

@@ -49,6 +49,12 @@ type LogInteraccion {
   usuario_id: ID!
 }
 
+type LoginResponse {
+  access_token: String!
+  rol: EnumRol!
+  usuario_id: ID!
+}
+
 type Medicamento {
   _id: ID!
   dosis: String!
@@ -57,6 +63,10 @@ type Medicamento {
   horarios_especificos: [String!]!
   nombre_farmaco: String!
   usuario_id: ID!
+}
+
+type Mutation {
+  login(correo: String!, password: String!): LoginResponse!
 }
 
 type NotaPersonal {

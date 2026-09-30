@@ -13,6 +13,7 @@ import { CitasModule } from './citas/citas.module';
 import { NotasPersonalesModule } from './notas-personales/notas-personales.module';
 import { RegistrosTomaModule } from './registros-toma/registros-toma.module';
 import { LogsInteraccionModule } from './logs-interaccion/logs-interaccion.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { LogsInteraccionModule } from './logs-interaccion/logs-interaccion.modul
     NotasPersonalesModule,
     RegistrosTomaModule,
     LogsInteraccionModule,
+    AuthModule,
   ],
   providers: [AppResolver],
 })
