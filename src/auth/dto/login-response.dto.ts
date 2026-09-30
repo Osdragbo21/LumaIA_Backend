@@ -1,6 +1,6 @@
 // Ruta: src/auth/dto/login-response.dto.ts
 import { ObjectType, Field, ID } from '@nestjs/graphql';
-import { EnumRol } from '../../usuarios/entities/usuario.entity';
+import { Enum_Rol } from '../../usuarios/entities/usuario.entity';
 
 @ObjectType()
 export class LoginResponse {
@@ -10,6 +10,6 @@ export class LoginResponse {
   @Field(() => ID)
   usuario_id: string;
 
-  @Field(() => EnumRol)
-  rol: EnumRol;
+  @Field(() => Enum_Rol)
+  rol: Enum_Rol;
 }
