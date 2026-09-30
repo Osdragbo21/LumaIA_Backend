@@ -4,6 +4,7 @@ import { Usuario } from './entities/usuario.entity';
 import { UsuariosService } from './usuarios.service';
 import { AgregarContactoInput } from './dto/agregar-contacto.input';
 import { CreateUsuarioInput } from './dto/create-usuario.input';
+import { VincularCuidadorInput } from './dto/vincular-cuidador.input';
 
 @Resolver(() => Usuario)
 export class UsuariosResolver {
@@ -28,6 +29,20 @@ export class UsuariosResolver {
     @Args('input') input: CreateUsuarioInput,
   ): Promise<Usuario> {
     return this.usuariosService.registrarUsuario(input);
+  }
+
+  @Mutation(() => String, { name: 'generarPinVinculacion' })
+  async generarPinVinculacion(
+    @Args('usuario_id', { type: () => ID }) usuario_id: string,
+  ): Promise<string> {
+    return this.usuariosService.generarPinVinculacion(usuario_id);
+  }
+
+  @Mutation(() => Usuario, { name: 'vincularCuidador' })
+  async vincularCuidador(
+    @Args('input') input: VincularCuidadorInput,
+  ): Promise<Usuario> {
+    return this.usuariosService.vincularCuidador(input);
   }
 
 }
