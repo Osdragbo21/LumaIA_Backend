@@ -9,6 +9,7 @@ import { NotaPersonal, NotaPersonalSchema } from './entities/nota-personal.entit
   imports: [
     MongooseModule.forFeature([{ name: NotaPersonal.name, schema: NotaPersonalSchema }]),
   ],
+  // CRÍTICO: El Resolver debe estar aquí para que GraphQL lo exponga
   providers: [NotasPersonalesResolver, NotasPersonalesService],
   exports: [NotasPersonalesService],
 })

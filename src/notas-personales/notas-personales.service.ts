@@ -22,7 +22,7 @@ export class NotasPersonalesService {
       });
       return await nuevaNota.save();
     } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       throw new GraphQLError(`Fallo al guardar la nota: ${errorMessage}`, {
         extensions: { code: 'BAD_USER_INPUT' },
       });
@@ -38,8 +38,8 @@ export class NotasPersonalesService {
         fecha_eliminacion: { $exists: false } 
       }).exec();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Error al consultar las notas: ${errorMessage}`, {
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+        throw new GraphQLError(`Error al consultar las notas: ${errorMessage}`, {
         extensions: { code: 'INTERNAL_SERVER_ERROR' },
       });
     }

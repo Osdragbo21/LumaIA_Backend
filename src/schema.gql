@@ -2,6 +2,13 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AgregarContactoInput {
+  nombre_contacto: String!
+  parentesco: String!
+  telefono: String!
+  usuario_id: ID!
+}
+
 type Cita {
   _id: ID!
   estado: EnumEstadoCita!
@@ -18,6 +25,28 @@ type ContactoEmergencia {
   telefono: String!
 }
 
+input CreateCitaInput {
+  estado: EnumEstadoCita
+  fecha_hora: DateTime!
+  titulo_evento: String!
+  ubicacion: String
+  usuario_id: ID!
+}
+
+input CreateMedicamentoInput {
+  dosis: String!
+  frecuencia_horas: Int
+  horarios_especificos: [String!]! = []
+  nombre_farmaco: String!
+  usuario_id: ID!
+}
+
+input CreateNotaPersonalInput {
+  contenido: String!
+  fecha_creacion: DateTime!
+  usuario_id: ID!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -29,13 +58,13 @@ enum EnumEstadoCita {
   PROGRAMADA
 }
 
-enum EnumEstadoToma {
+enum Enum_EstadoToma {
   CONFIRMADA
   OMITIDA
   PENDIENTE
 }
 
-enum EnumRol {
+enum Enum_Rol {
   ADULTO_MAYOR
   CUIDADOR
 }
@@ -51,7 +80,7 @@ type LogInteraccion {
 
 type LoginResponse {
   access_token: String!
-  rol: EnumRol!
+  rol: Enum_Rol!
   usuario_id: ID!
 }
 
@@ -66,6 +95,10 @@ type Medicamento {
 }
 
 type Mutation {
+  agregarContactoEmergencia(input: AgregarContactoInput!): Usuario!
+  crearCita(createCitaInput: CreateCitaInput!): Cita!
+  crearMedicamento(createMedicamentoInput: CreateMedicamentoInput!): Medicamento!
+  crearNotaPersonal(createNotaPersonalInput: CreateNotaPersonalInput!): NotaPersonal!
   login(correo: String!, password: String!): LoginResponse!
 }
 
@@ -78,20 +111,20 @@ type NotaPersonal {
 }
 
 type Query {
-  citasBase: [Cita!]!
   logsInteraccionBase: [LogInteraccion!]!
 
   """Estado general del API LumaIA"""
   lumaStatus: String!
-  medicamentosBase: [Medicamento!]!
-  notasPersonalesBase: [NotaPersonal!]!
+  obtenerCitasPorUsuario(usuario_id: ID!): [Cita!]!
+  obtenerMedicamentosPorUsuario(usuario_id: ID!): [Medicamento!]!
+  obtenerNotasPersonalesPorUsuario(usuario_id: ID!): [NotaPersonal!]!
+  obtenerUsuario(usuario_id: ID!): Usuario!
   registrosTomaBase: [RegistroToma!]!
-  usuariosBase: [Usuario!]!
 }
 
 type RegistroToma {
   _id: ID!
-  estado_toma: EnumEstadoToma!
+  estado_toma: Enum_EstadoToma!
   fecha_confirmacion: DateTime
   fecha_programada: DateTime!
   medicamento_id: ID!
@@ -106,6 +139,6 @@ type Usuario {
   nombre: String!
   password_hash: String!
   pin_vinculacion: String
-  rol: EnumRol!
+  rol: Enum_Rol!
   tokens_dispositivo: [String!]!
 }
