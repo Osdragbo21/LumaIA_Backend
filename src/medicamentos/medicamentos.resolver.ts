@@ -2,30 +2,26 @@
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { Medicamento } from './entities/medicamento.entity';
 import { CreateMedicamentoInput } from './dto/create-medicamento.input';
+import { MedicamentosService } from './medicamentos.service';
 
 @Resolver(() => Medicamento)
 export class MedicamentosResolver {
-  
-  // Query para listar los medicamentos de un usuario específico
+  // Inyección de dependencias del servicio
+  constructor(private readonly medicamentosService: MedicamentosService) {}
+
   @Query(() => [Medicamento], { name: 'obtenerMedicamentosPorUsuario' })
-  obtenerMedicamentosPorUsuario(
+  async obtenerMedicamentosPorUsuario(
     @Args('usuario_id', { type: () => ID }) usuario_id: string,
-  ): Medicamento[] {
-    // TODO: Conectar con MedicamentosService.findAllByUserId(usuario_id)
+  ): Promise<Medicamento[]> {
+    // Se implementará en la siguiente fase de consultas
     return [];
   }
 
-  // Mutation para registrar un nuevo esquema médico
   @Mutation(() => Medicamento, { name: 'crearMedicamento' })
-  crearMedicamento(
+  async crearMedicamento(
     @Args('createMedicamentoInput') createMedicamentoInput: CreateMedicamentoInput,
-  ): Medicamento {
-    // TODO: Conectar con MedicamentosService.create(createMedicamentoInput)
-    // Retorno mock para que el frontend compile
-    return {
-      _id: 'mock_id_123',
-      ...createMedicamentoInput,
-      fecha_eliminacion: null,
-    } as any;
+  ): Promise<Medicamento> {
+    // Petición delegada al servicio real
+    return this.medicamentosService.create(createMedicamentoInput);
   }
 }
