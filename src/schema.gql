@@ -47,6 +47,13 @@ input CreateNotaPersonalInput {
   usuario_id: ID!
 }
 
+input CreateUsuarioInput {
+  correo: String!
+  nombre: String!
+  password: String!
+  rol: Enum_Rol!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -96,10 +103,14 @@ type Medicamento {
 
 type Mutation {
   agregarContactoEmergencia(input: AgregarContactoInput!): Usuario!
+  consultarAsistente(pregunta_id: String!, usuario_id: ID!): String!
   crearCita(createCitaInput: CreateCitaInput!): Cita!
   crearMedicamento(createMedicamentoInput: CreateMedicamentoInput!): Medicamento!
   crearNotaPersonal(createNotaPersonalInput: CreateNotaPersonalInput!): NotaPersonal!
+  generarPinVinculacion(usuario_id: ID!): String!
   login(correo: String!, password: String!): LoginResponse!
+  registrarUsuario(input: CreateUsuarioInput!): Usuario!
+  vincularCuidador(input: VincularCuidadorInput!): Usuario!
 }
 
 type NotaPersonal {
@@ -141,4 +152,9 @@ type Usuario {
   pin_vinculacion: String
   rol: Enum_Rol!
   tokens_dispositivo: [String!]!
+}
+
+input VincularCuidadorInput {
+  cuidador_id: ID!
+  pin: String!
 }

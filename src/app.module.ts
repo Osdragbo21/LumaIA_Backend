@@ -14,6 +14,7 @@ import { NotasPersonalesModule } from './notas-personales/notas-personales.modul
 import { RegistrosTomaModule } from './registros-toma/registros-toma.module';
 import { LogsInteraccionModule } from './logs-interaccion/logs-interaccion.module';
 import { AuthModule } from './auth/auth.module';
+import { AsistenteModule } from './asistente/asistente.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { AuthModule } from './auth/auth.module';
     RegistrosTomaModule,
     LogsInteraccionModule,
     AuthModule,
+    AsistenteModule,
   ],
   providers: [AppResolver],
 })
