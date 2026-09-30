@@ -3,6 +3,7 @@ import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { Usuario } from './entities/usuario.entity';
 import { UsuariosService } from './usuarios.service';
 import { AgregarContactoInput } from './dto/agregar-contacto.input';
+import { CreateUsuarioInput } from './dto/create-usuario.input';
 
 @Resolver(() => Usuario)
 export class UsuariosResolver {
@@ -21,4 +22,12 @@ export class UsuariosResolver {
   ): Promise<Usuario> {
     return this.usuariosService.agregarContacto(input);
   }
+
+  @Mutation(() => Usuario, { name: 'registrarUsuario' })
+  async registrarUsuario(
+    @Args('input') input: CreateUsuarioInput,
+  ): Promise<Usuario> {
+    return this.usuariosService.registrarUsuario(input);
+  }
+
 }
