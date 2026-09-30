@@ -26,8 +26,10 @@ export class MedicamentosService {
       // 3. Inserción real en Atlas
       return await nuevoMedicamento.save();
     } catch (error) {
-      // 4. Romper el silencio: Lanza error formal de GraphQL al Frontend
-      throw new GraphQLError(`Fallo al guardar el medicamento: ${error.message}`, {
+      // 4. Romper el silencio: Manejo seguro del tipo unknown para extraer el mensaje
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      
+      throw new GraphQLError(`Fallo al guardar el medicamento: ${errorMessage}`, {
         extensions: { code: 'BAD_USER_INPUT' },
       });
     }
