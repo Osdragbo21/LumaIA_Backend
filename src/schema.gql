@@ -103,6 +103,7 @@ type Medicamento {
 
 type Mutation {
   agregarContactoEmergencia(input: AgregarContactoInput!): Usuario!
+  confirmarTomaMedicamento(medicamento_id: ID!): RegistroToma!
   consultarAsistente(pregunta_id: String!, usuario_id: ID!): String!
   crearCita(createCitaInput: CreateCitaInput!): Cita!
   crearMedicamento(createMedicamentoInput: CreateMedicamentoInput!): Medicamento!
