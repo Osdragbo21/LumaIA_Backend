@@ -1,4 +1,5 @@
-// Ruta: src/asistente/asistente.resolver.ts
+// [BACKEND] Ruta: src/asistente/asistente.resolver.ts
+
 import { Resolver, Mutation, Args, ID } from '@nestjs/graphql';
 import { AsistenteService } from './asistente.service';
 
@@ -10,7 +11,8 @@ export class AsistenteResolver {
   async consultarAsistente(
     @Args('usuario_id', { type: () => ID }) usuario_id: string,
     @Args('pregunta_id') pregunta_id: string,
+    @Args('modelo', { type: () => String, nullable: true }) modelo?: string, // <-- NUEVO
   ): Promise<string> {
-    return this.asistenteService.procesarPregunta(usuario_id, pregunta_id);
+    return this.asistenteService.procesarPregunta(usuario_id, pregunta_id, modelo);
   }
 }
