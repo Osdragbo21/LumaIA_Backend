@@ -130,6 +130,7 @@ type Query {
   obtenerCitasPorUsuario(usuario_id: ID!): [Cita!]!
   obtenerMedicamentosPorUsuario(usuario_id: ID!): [Medicamento!]!
   obtenerNotasPersonalesPorUsuario(usuario_id: ID!): [NotaPersonal!]!
+  obtenerTomasHoy(usuario_id: ID!): [RegistroToma!]!
   obtenerUsuario(usuario_id: ID!): Usuario!
   registrosTomaBase: [RegistroToma!]!
 }

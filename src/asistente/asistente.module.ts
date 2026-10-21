@@ -8,6 +8,7 @@ import { AsistenteResolver } from './asistente.resolver';
 import { Medicamento, MedicamentoSchema } from '../medicamentos/entities/medicamento.entity';
 import { LogInteraccion, LogInteraccionSchema } from '../logs-interaccion/entities/log-interaccion.entity';
 import { Cita, CitaSchema } from '../citas/entities/cita.entity'; // <-- NUEVO
+import { RegistroToma, RegistroTomaSchema } from '../registros-toma/entities/registro-toma.entity';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Cita, CitaSchema } from '../citas/entities/cita.entity'; // <-- NUEVO
       { name: LogInteraccion.name, schema: LogInteraccionSchema },
       { name: Cita.name, schema: CitaSchema }, // <-- NUEVO
     ]),
+    MongooseModule.forFeature([{ name: RegistroToma.name, schema: RegistroTomaSchema }]), // <-- NUEVO
   ],
   providers: [AsistenteResolver, AsistenteService],
 })

@@ -8,7 +8,8 @@ import { firstValueFrom } from 'rxjs';
 import { GraphQLError } from 'graphql';
 import { Medicamento } from '../medicamentos/entities/medicamento.entity';
 import { LogInteraccion } from '../logs-interaccion/entities/log-interaccion.entity';
-import { Cita } from '../citas/entities/cita.entity'; // <-- NUEVO
+import { Cita } from '../citas/entities/cita.entity';
+import { RegistroToma, Enum_EstadoToma } from '../registros-toma/entities/registro-toma.entity';
 
 @Injectable()
 export class AsistenteService {
@@ -16,7 +17,8 @@ export class AsistenteService {
     private readonly httpService: HttpService,
     @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
     @InjectModel(LogInteraccion.name) private logInteraccionModel: Model<LogInteraccion>,
-    @InjectModel(Cita.name) private citaModel: Model<Cita>, // <-- NUEVO
+    @InjectModel(Cita.name) private citaModel: Model<Cita>,
+    @InjectModel(RegistroToma.name) private registroTomaModel: Model<RegistroToma>, // NUEVO
   ) {}
 
   async procesarPregunta(usuario_id: string, pregunta_id: string): Promise<string> {
@@ -34,8 +36,22 @@ export class AsistenteService {
         fecha_eliminacion: { $exists: false }
       }).exec();
 
-      // 2. Mapear contratos para Python
+      // 2. Obtener las tomas confirmadas de HOY
+      const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
+      const finDia = new Date(); finDia.setHours(23, 59, 59, 999);
+      
+      const tomasHoyDocs = await this.registroTomaModel.find({
+        medicamento_id: { $in: medicamentos.map(m => m._id) },
+        estado_toma: Enum_EstadoToma.CONFIRMADA,
+        fecha_confirmacion: { $gte: inicioDia, $lte: finDia }
+      }).exec();
+
+      // Mapeamos los IDs de los medicamentos ya tomados
+      const idsTomadosHoy = tomasHoyDocs.map(t => t.medicamento_id.toString());
+
+      // 3. Mapear contratos para el motor de IA
       const medicamentos_activos = medicamentos.map(med => ({
+        id: med._id.toString(),
         nombre_farmaco: med.nombre_farmaco,
         horarios_especificos: med.horarios_especificos,
       }));
@@ -46,16 +62,17 @@ export class AsistenteService {
         ubicacion: cita.ubicacion || 'Sin ubicación'
       }));
 
-      // 3. Petición HTTP al Microservicio Lógico (FastAPI)
+      // 4. Petición HTTP al Microservicio Lógico (FastAPI)
       const { data } = await firstValueFrom(
         this.httpService.post('http://localhost:8000/evaluar', {
           pregunta_id,
           medicamentos_activos,
-          citas: citas_activas // <-- NUEVO: Enviamos las citas
+          citas: citas_activas,
+          tomas_hoy_ids: idsTomadosHoy // NUEVO: Contexto de lo que ya se tomó
         })
       );
 
-      // 4. Auditoría: Guardar Log
+      // 5. Auditoría: Guardar Log
       const nuevoLog = new this.logInteraccionModel({
         usuario_id: objectId,
         premisa_entrada: pregunta_id,
