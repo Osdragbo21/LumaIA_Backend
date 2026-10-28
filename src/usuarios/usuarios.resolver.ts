@@ -3,6 +3,7 @@
 import { Resolver, Query, Mutation, Args, ID, ObjectType, Field } from '@nestjs/graphql';
 import { Usuario } from './entities/usuario.entity';
 import { CreateUsuarioInput } from './dto/create-usuario.input';
+import { AgregarContactoInput } from './dto/agregar-contacto.input';
 import { UsuariosService } from './usuarios.service';
 import { Medicamento } from '../medicamentos/entities/medicamento.entity';
 import { Cita } from '../citas/entities/cita.entity';
@@ -20,7 +21,22 @@ export class ResumenAdultoVinculado {
 export class UsuariosResolver {
   constructor(private readonly usuariosService: UsuariosService) {}
 
-  // CORRECCIÓN: Aseguramos que la mutación de registro exista
+  // --- RESTAURADO: Obtener el perfil del usuario ---
+  @Query(() => Usuario, { name: 'obtenerUsuario' })
+  async obtenerUsuario(
+    @Args('usuario_id', { type: () => ID }) usuario_id: string,
+  ): Promise<Usuario> {
+    return this.usuariosService.obtenerUsuario(usuario_id);
+  }
+
+  // --- RESTAURADO: Agregar contacto de emergencia ---
+  @Mutation(() => Usuario, { name: 'agregarContactoEmergencia' })
+  async agregarContactoEmergencia(
+    @Args('input') input: AgregarContactoInput,
+  ): Promise<Usuario> {
+    return this.usuariosService.agregarContactoEmergencia(input);
+  }
+
   @Mutation(() => Usuario, { name: 'registrarUsuario' })
   async registrarUsuario(
     @Args('input') input: CreateUsuarioInput,

@@ -5,9 +5,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GraphQLError } from 'graphql';
 import * as bcrypt from 'bcrypt';
-// CORRECCIÓN 1: Importamos Enum_Rol para usarlo en las consultas
 import { Usuario, Enum_Rol } from './entities/usuario.entity';
 import { CreateUsuarioInput } from './dto/create-usuario.input';
+import { AgregarContactoInput } from './dto/agregar-contacto.input';
 import { Medicamento } from '../medicamentos/entities/medicamento.entity';
 import { Cita } from '../citas/entities/cita.entity';
 import { RegistroToma, Enum_EstadoToma } from '../registros-toma/entities/registro-toma.entity';
@@ -36,6 +36,46 @@ export class UsuariosService {
     return { inicioDia: inicioDiaUTC, finDia: finDiaUTC };
   }
 
+  // --- 1. OBTENER PERFIL (Restaurado para la Red de Apoyo) ---
+  async obtenerUsuario(usuario_id: string): Promise<Usuario> {
+    try {
+      if (!Types.ObjectId.isValid(usuario_id)) throw new Error('ID de usuario inválido.');
+      const usuario = await this.usuarioModel.findById(usuario_id).exec();
+      if (!usuario) throw new Error('Usuario no encontrado.');
+      return usuario as unknown as Usuario;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al obtener usuario: ${errorMessage}`);
+    }
+  }
+
+  // --- 2. AGREGAR CONTACTO (Restaurado para la Red de Apoyo) ---
+  async agregarContactoEmergencia(input: AgregarContactoInput): Promise<Usuario> {
+    try {
+      if (!Types.ObjectId.isValid(input.usuario_id)) throw new Error('ID de usuario inválido.');
+      const usuarioActualizado = await this.usuarioModel.findByIdAndUpdate(
+        input.usuario_id,
+        {
+          $push: {
+            contactos_emergencia: {
+              nombre_contacto: input.nombre_contacto,
+              telefono: input.telefono,
+              parentesco: input.parentesco,
+            }
+          }
+        },
+        { new: true }
+      ).exec();
+
+      if (!usuarioActualizado) throw new Error('Usuario no encontrado.');
+      return usuarioActualizado as unknown as Usuario;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al agregar contacto: ${errorMessage}`);
+    }
+  }
+
+  // --- 3. REGISTRO ---
   async registrarUsuario(input: CreateUsuarioInput): Promise<Usuario> {
     try {
       const existe = await this.usuarioModel.findOne({ correo: input.correo }).exec();
@@ -61,12 +101,12 @@ export class UsuariosService {
     }
   }
 
+  // --- 4. VINCULACIÓN ---
   async vincularAdultoMayor(cuidador_id: string, correo_adulto: string): Promise<Usuario> {
     try {
       if (!Types.ObjectId.isValid(cuidador_id)) throw new Error('ID de cuidador inválido.');
       const cuidadorObjectId = new Types.ObjectId(cuidador_id);
       
-      // CORRECCIÓN 2: Usamos el Enum_Rol explícito en lugar del string quemado
       const adulto = await this.usuarioModel.findOne({ 
         correo: correo_adulto, 
         rol: Enum_Rol.ADULTO_MAYOR 
@@ -75,11 +115,9 @@ export class UsuariosService {
       if (!adulto) throw new Error('No se encontró un Adulto Mayor con ese correo.');
 
       await this.usuarioModel.findByIdAndUpdate(cuidadorObjectId, {
-        // CORRECCIÓN 3: Forzamos (adulto as any) para que TypeScript no se queje del _id
         $addToSet: { adultos_vinculados: (adulto as any)._id }
       }).exec();
 
-      // CORRECCIÓN 4: Forzamos (adulto as any) para asignar la propiedad sin errores de tipos
       (adulto as any).cuidador_vinculado_id = cuidadorObjectId;
       const adultoGuardado = await adulto.save();
       
@@ -90,6 +128,7 @@ export class UsuariosService {
     }
   }
 
+  // --- 5. DASHBOARD CUIDADOR ---
   async obtenerAdultosVinculados(cuidador_id: string): Promise<any[]> {
     try {
       if (!Types.ObjectId.isValid(cuidador_id)) throw new Error('ID de cuidador inválido.');

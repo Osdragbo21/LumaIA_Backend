@@ -1,49 +1,45 @@
-// Ruta: src/citas/citas.service.ts
+// [BACKEND] Ruta: src/citas/citas.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GraphQLError } from 'graphql';
 import { Cita } from './entities/cita.entity';
-import { CreateCitaInput } from './dto/create-cita.input';
+import { CreateCitaInput, UpdateCitaInput } from './dto/create-cita.input';
 
 @Injectable()
 export class CitasService {
-  constructor(
-    @InjectModel(Cita.name) private citaModel: Model<Cita>,
-  ) {}
+  constructor(@InjectModel(Cita.name) private citaModel: Model<Cita>) {}
 
   async create(input: CreateCitaInput): Promise<Cita> {
-    try {
-      // 1. Casteo estricto del String a ObjectId
-      const usuarioObjectId = new Types.ObjectId(input.usuario_id);
-      
-      // 2. Instancia y guardado en la colección
-      const nuevaCita = new this.citaModel({
-        ...input,
-        usuario_id: usuarioObjectId,
-      });
-      return await nuevaCita.save();
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al programar la cita: ${errorMessage}`, {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
-    }
+    const nuevaCita = new this.citaModel({ ...input, usuario_id: new Types.ObjectId(input.usuario_id) });
+    return await nuevaCita.save();
   }
 
   async findAllByUserId(usuario_id: string): Promise<Cita[]> {
-    try {
-      const usuarioObjectId = new Types.ObjectId(usuario_id);
-      // 3. Obtener citas activas (ignorando las que están en papelera TTL)
-      return await this.citaModel.find({ 
-        usuario_id: usuarioObjectId,
-        fecha_eliminacion: { $exists: false } 
-      }).exec();
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Error al consultar la agenda: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
+    return await this.citaModel.find({ usuario_id: new Types.ObjectId(usuario_id), fecha_eliminacion: { $exists: false } }).exec();
+  }
+
+  async findDeletedByUserId(usuario_id: string): Promise<Cita[]> {
+    return await this.citaModel.find({ usuario_id: new Types.ObjectId(usuario_id), fecha_eliminacion: { $exists: true } }).exec();
+  }
+
+  async update(input: UpdateCitaInput): Promise<Cita> {
+    const { _id, ...updateData } = input;
+    const actualizado = await this.citaModel.findByIdAndUpdate(_id, updateData, { new: true }).exec();
+    if (!actualizado) throw new GraphQLError('Cita no encontrada');
+    return actualizado;
+  }
+
+  async softDelete(id: string): Promise<Cita> {
+    const borrado = await this.citaModel.findByIdAndUpdate(id, { fecha_eliminacion: new Date() }, { new: true }).exec();
+    if (!borrado) throw new GraphQLError('Cita no encontrada');
+    return borrado;
+  }
+
+  async restore(id: string): Promise<Cita> {
+    const restaurado = await this.citaModel.findByIdAndUpdate(id, { $unset: { fecha_eliminacion: 1 } }, { new: true }).exec();
+    if (!restaurado) throw new GraphQLError('Cita no encontrada');
+    return restaurado;
   }
 }

@@ -2,6 +2,13 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AgregarContactoInput {
+  nombre_contacto: String!
+  parentesco: String!
+  telefono: String!
+  usuario_id: ID!
+}
+
 type AsistenteResponse {
   intencion: String!
   respuesta_texto: String!
@@ -100,13 +107,23 @@ type Medicamento {
 }
 
 type Mutation {
+  actualizarCita(updateCitaInput: UpdateCitaInput!): Cita!
+  actualizarMedicamento(updateMedicamentoInput: UpdateMedicamentoInput!): Medicamento!
+  actualizarNotaPersonal(updateNotaPersonalInput: UpdateNotaPersonalInput!): NotaPersonal!
+  agregarContactoEmergencia(input: AgregarContactoInput!): Usuario!
   confirmarTomaMedicamento(medicamento_id: ID!): RegistroToma!
   consultarAsistente(modelo: String, pregunta_id: String!, usuario_id: ID!): AsistenteResponse!
   crearCita(createCitaInput: CreateCitaInput!): Cita!
   crearMedicamento(createMedicamentoInput: CreateMedicamentoInput!): Medicamento!
   crearNotaPersonal(createNotaPersonalInput: CreateNotaPersonalInput!): NotaPersonal!
+  eliminarCita(id: ID!): Cita!
+  eliminarMedicamento(id: ID!): Medicamento!
+  eliminarNotaPersonal(id: ID!): NotaPersonal!
   login(correo: String!, password: String!): LoginResponse!
   registrarUsuario(input: CreateUsuarioInput!): Usuario!
+  restaurarCita(id: ID!): Cita!
+  restaurarMedicamento(id: ID!): Medicamento!
+  restaurarNotaPersonal(id: ID!): NotaPersonal!
   transcribirAudio(base64Audio: String!): String!
   vincularAdultoMayor(correo_adulto: String!, cuidador_id: ID!): Usuario!
 }
@@ -125,10 +142,14 @@ type Query {
   """Estado general del API LumaIA"""
   lumaStatus: String!
   obtenerAdultosVinculados(cuidador_id: ID!): [ResumenAdultoVinculado!]!
+  obtenerCitasPapelera(usuario_id: ID!): [Cita!]!
   obtenerCitasPorUsuario(usuario_id: ID!): [Cita!]!
+  obtenerMedicamentosPapelera(usuario_id: ID!): [Medicamento!]!
   obtenerMedicamentosPorUsuario(usuario_id: ID!): [Medicamento!]!
+  obtenerNotasPapelera(usuario_id: ID!): [NotaPersonal!]!
   obtenerNotasPersonalesPorUsuario(usuario_id: ID!): [NotaPersonal!]!
   obtenerTomasHoy(usuario_id: ID!): [RegistroToma!]!
+  obtenerUsuario(usuario_id: ID!): Usuario!
   registrosTomaBase: [RegistroToma!]!
 }
 
@@ -145,6 +166,27 @@ type ResumenAdultoVinculado {
   citas_hoy: [Cita!]!
   medicamentos: [Medicamento!]!
   tomas_hoy: [RegistroToma!]!
+}
+
+input UpdateCitaInput {
+  _id: ID!
+  estado: EnumEstadoCita
+  fecha_hora: DateTime
+  titulo_evento: String
+  ubicacion: String
+}
+
+input UpdateMedicamentoInput {
+  _id: ID!
+  dosis: String
+  frecuencia_horas: Int
+  horarios_especificos: [String!]
+  nombre_farmaco: String
+}
+
+input UpdateNotaPersonalInput {
+  _id: ID!
+  contenido: String
 }
 
 type Usuario {

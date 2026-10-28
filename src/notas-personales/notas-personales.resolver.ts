@@ -1,7 +1,8 @@
-// Ruta: src/notas-personales/notas-personales.resolver.ts
+// [BACKEND] Ruta: src/notas-personales/notas-personales.resolver.ts
+
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { NotaPersonal } from './entities/nota-personal.entity';
-import { CreateNotaPersonalInput } from './dto/create-nota-personal.input';
+import { CreateNotaPersonalInput, UpdateNotaPersonalInput } from './dto/create-nota-personal.input';
 import { NotasPersonalesService } from './notas-personales.service';
 
 @Resolver(() => NotaPersonal)
@@ -9,16 +10,32 @@ export class NotasPersonalesResolver {
   constructor(private readonly notasPersonalesService: NotasPersonalesService) {}
 
   @Query(() => [NotaPersonal], { name: 'obtenerNotasPersonalesPorUsuario' })
-  async obtenerNotasPersonalesPorUsuario(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
-  ): Promise<NotaPersonal[]> {
+  async obtenerNotasPersonalesPorUsuario(@Args('usuario_id', { type: () => ID }) usuario_id: string): Promise<NotaPersonal[]> {
     return this.notasPersonalesService.findAllByUserId(usuario_id);
   }
 
+  @Query(() => [NotaPersonal], { name: 'obtenerNotasPapelera' })
+  async obtenerNotasPapelera(@Args('usuario_id', { type: () => ID }) usuario_id: string): Promise<NotaPersonal[]> {
+    return this.notasPersonalesService.findDeletedByUserId(usuario_id);
+  }
+
   @Mutation(() => NotaPersonal, { name: 'crearNotaPersonal' })
-  async crearNotaPersonal(
-    @Args('createNotaPersonalInput') createNotaPersonalInput: CreateNotaPersonalInput,
-  ): Promise<NotaPersonal> {
+  async crearNotaPersonal(@Args('createNotaPersonalInput') createNotaPersonalInput: CreateNotaPersonalInput): Promise<NotaPersonal> {
     return this.notasPersonalesService.create(createNotaPersonalInput);
+  }
+
+  @Mutation(() => NotaPersonal, { name: 'actualizarNotaPersonal' })
+  async actualizarNotaPersonal(@Args('updateNotaPersonalInput') updateNotaPersonalInput: UpdateNotaPersonalInput): Promise<NotaPersonal> {
+    return this.notasPersonalesService.update(updateNotaPersonalInput);
+  }
+
+  @Mutation(() => NotaPersonal, { name: 'eliminarNotaPersonal' })
+  async eliminarNotaPersonal(@Args('id', { type: () => ID }) id: string): Promise<NotaPersonal> {
+    return this.notasPersonalesService.softDelete(id);
+  }
+
+  @Mutation(() => NotaPersonal, { name: 'restaurarNotaPersonal' })
+  async restaurarNotaPersonal(@Args('id', { type: () => ID }) id: string): Promise<NotaPersonal> {
+    return this.notasPersonalesService.restore(id);
   }
 }

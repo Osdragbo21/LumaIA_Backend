@@ -1,47 +1,45 @@
-// Ruta: src/notas-personales/notas-personales.service.ts
+// [BACKEND] Ruta: src/notas-personales/notas-personales.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GraphQLError } from 'graphql';
 import { NotaPersonal } from './entities/nota-personal.entity';
-import { CreateNotaPersonalInput } from './dto/create-nota-personal.input';
+import { CreateNotaPersonalInput, UpdateNotaPersonalInput } from './dto/create-nota-personal.input';
 
 @Injectable()
 export class NotasPersonalesService {
-  constructor(
-    @InjectModel(NotaPersonal.name) private notaPersonalModel: Model<NotaPersonal>,
-  ) {}
+  constructor(@InjectModel(NotaPersonal.name) private notaPersonalModel: Model<NotaPersonal>) {}
 
   async create(input: CreateNotaPersonalInput): Promise<NotaPersonal> {
-    try {
-      const usuarioObjectId = new Types.ObjectId(input.usuario_id);
-      
-      const nuevaNota = new this.notaPersonalModel({
-        ...input,
-        usuario_id: usuarioObjectId,
-      });
-      return await nuevaNota.save();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al guardar la nota: ${errorMessage}`, {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
-    }
+    const nuevaNota = new this.notaPersonalModel({ ...input, usuario_id: new Types.ObjectId(input.usuario_id) });
+    return await nuevaNota.save();
   }
 
   async findAllByUserId(usuario_id: string): Promise<NotaPersonal[]> {
-    try {
-      const usuarioObjectId = new Types.ObjectId(usuario_id);
-      
-      return await this.notaPersonalModel.find({ 
-        usuario_id: usuarioObjectId,
-        fecha_eliminacion: { $exists: false } 
-      }).exec();
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-        throw new GraphQLError(`Error al consultar las notas: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
+    return await this.notaPersonalModel.find({ usuario_id: new Types.ObjectId(usuario_id), fecha_eliminacion: { $exists: false } }).exec();
+  }
+
+  async findDeletedByUserId(usuario_id: string): Promise<NotaPersonal[]> {
+    return await this.notaPersonalModel.find({ usuario_id: new Types.ObjectId(usuario_id), fecha_eliminacion: { $exists: true } }).exec();
+  }
+
+  async update(input: UpdateNotaPersonalInput): Promise<NotaPersonal> {
+    const { _id, ...updateData } = input;
+    const actualizado = await this.notaPersonalModel.findByIdAndUpdate(_id, updateData, { new: true }).exec();
+    if (!actualizado) throw new GraphQLError('Nota no encontrada');
+    return actualizado;
+  }
+
+  async softDelete(id: string): Promise<NotaPersonal> {
+    const borrado = await this.notaPersonalModel.findByIdAndUpdate(id, { fecha_eliminacion: new Date() }, { new: true }).exec();
+    if (!borrado) throw new GraphQLError('Nota no encontrada');
+    return borrado;
+  }
+
+  async restore(id: string): Promise<NotaPersonal> {
+    const restaurado = await this.notaPersonalModel.findByIdAndUpdate(id, { $unset: { fecha_eliminacion: 1 } }, { new: true }).exec();
+    if (!restaurado) throw new GraphQLError('Nota no encontrada');
+    return restaurado;
   }
 }

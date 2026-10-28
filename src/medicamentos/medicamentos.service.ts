@@ -5,7 +5,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GraphQLError } from 'graphql';
 import { Medicamento } from './entities/medicamento.entity';
-import { CreateMedicamentoInput } from './dto/create-medicamento.input';
+import { CreateMedicamentoInput, UpdateMedicamentoInput } from './dto/create-medicamento.input';
 
 @Injectable()
 export class MedicamentosService {
@@ -13,77 +13,89 @@ export class MedicamentosService {
     @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
   ) {}
 
+  private calcularHorarios(horaInicialStr: string, frecuencia: number): string[] {
+    const partesHora = horaInicialStr.split(':');
+    if (partesHora.length !== 2) return [horaInicialStr];
+    
+    const horaInicial = parseInt(partesHora[0], 10);
+    const minutos = parseInt(partesHora[1], 10);
+    const limiteTomasDia = Math.floor(24 / frecuencia);
+    const horariosCalculados = [];
+
+    for (let i = 0; i < limiteTomasDia; i++) {
+      const horaCalculada = (horaInicial + (i * frecuencia)) % 24;
+      const hh = horaCalculada.toString().padStart(2, '0');
+      const mm = minutos.toString().padStart(2, '0');
+      horariosCalculados.push(`${hh}:${mm}`);
+    }
+    return horariosCalculados;
+  }
+
   async create(input: CreateMedicamentoInput): Promise<Medicamento> {
     try {
       const usuarioObjectId = new Types.ObjectId(input.usuario_id);
-      
-      // 1. Clonamos el arreglo original para manipularlo
       let horariosCalculados = input.horarios_especificos;
 
-      // 2. Algoritmo de Cálculo de Horarios
-      if (
-        input.horarios_especificos && 
-        input.horarios_especificos.length > 0 && 
-        input.frecuencia_horas && 
-        input.frecuencia_horas > 0
-      ) {
-        // Extraemos la primera toma (Ej. "08:30")
-        const horaInicialStr = input.horarios_especificos[0];
-        const partesHora = horaInicialStr.split(':');
-        
-        if (partesHora.length === 2) {
-          const horaInicial = parseInt(partesHora[0], 10);
-          const minutos = parseInt(partesHora[1], 10);
-
-          // Límite de tomas al día (Ej. 24 / 8 = 3 tomas)
-          const limiteTomasDia = Math.floor(24 / input.frecuencia_horas);
-          
-          horariosCalculados = []; // Vaciamos para llenarlo con la secuencia completa
-
-          // Generamos la secuencia de horarios
-          for (let i = 0; i < limiteTomasDia; i++) {
-            // Calculamos la hora sumando la frecuencia y usando módulo 24 para saltos de medianoche
-            const horaCalculada = (horaInicial + (i * input.frecuencia_horas)) % 24;
-            
-            // Formateo seguro a string de dos dígitos (HH:mm)
-            const hh = horaCalculada.toString().padStart(2, '0');
-            const mm = minutos.toString().padStart(2, '0');
-            
-            horariosCalculados.push(`${hh}:${mm}`);
-          }
-        }
+      if (input.horarios_especificos?.length > 0 && input.frecuencia_horas && input.frecuencia_horas > 0) {
+        horariosCalculados = this.calcularHorarios(input.horarios_especificos[0], input.frecuencia_horas);
       }
 
-      // 3. Instanciar documento con el arreglo calculado y guardar
       const nuevoMedicamento = new this.medicamentoModel({
         ...input,
         usuario_id: usuarioObjectId,
-        horarios_especificos: horariosCalculados, // Reemplazamos con el nuevo arreglo
+        horarios_especificos: horariosCalculados,
       });
 
       return await nuevoMedicamento.save();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al guardar el medicamento: ${errorMessage}`, {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
+      throw new GraphQLError(`Fallo al guardar el medicamento: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  // MÉTODO DE LECTURA INTACTO
   async findAllByUserId(usuario_id: string): Promise<Medicamento[]> {
+    return await this.medicamentoModel.find({ 
+      usuario_id: new Types.ObjectId(usuario_id),
+      fecha_eliminacion: { $exists: false } 
+    }).exec();
+  }
+
+  // NUEVO: Obtener los eliminados (Papelera)
+  async findDeletedByUserId(usuario_id: string): Promise<Medicamento[]> {
+    return await this.medicamentoModel.find({ 
+      usuario_id: new Types.ObjectId(usuario_id),
+      fecha_eliminacion: { $exists: true } 
+    }).exec();
+  }
+
+  // NUEVO: Actualizar
+  async update(input: UpdateMedicamentoInput): Promise<Medicamento> {
     try {
-      const usuarioObjectId = new Types.ObjectId(usuario_id);
-      // Busca todos los medicamentos de este usuario que no hayan sido marcados para borrado lógico (TTL)
-      return await this.medicamentoModel.find({ 
-        usuario_id: usuarioObjectId,
-        fecha_eliminacion: { $exists: false } 
-      }).exec();
+      const { _id, ...updateData } = input;
+      
+      // Si cambian la hora o frecuencia, recalculamos
+      if (updateData.horarios_especificos?.length > 0 && updateData.frecuencia_horas) {
+        updateData.horarios_especificos = this.calcularHorarios(updateData.horarios_especificos[0], updateData.frecuencia_horas);
+      }
+
+      const actualizado = await this.medicamentoModel.findByIdAndUpdate(_id, updateData, { new: true }).exec();
+      if (!actualizado) throw new Error('Medicamento no encontrado');
+      return actualizado;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Error al consultar medicamentos: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
+      throw new GraphQLError(`Error al actualizar: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  // NUEVO: Borrado Lógico (Mover a papelera)
+  async softDelete(id: string): Promise<Medicamento> {
+    const borrado = await this.medicamentoModel.findByIdAndUpdate(id, { fecha_eliminacion: new Date() }, { new: true }).exec();
+    if (!borrado) throw new GraphQLError('Medicamento no encontrado');
+    return borrado;
+  }
+
+  // NUEVO: Restaurar de papelera
+  async restore(id: string): Promise<Medicamento> {
+    const restaurado = await this.medicamentoModel.findByIdAndUpdate(id, { $unset: { fecha_eliminacion: 1 } }, { new: true }).exec();
+    if (!restaurado) throw new GraphQLError('Medicamento no encontrado');
+    return restaurado;
   }
 }
