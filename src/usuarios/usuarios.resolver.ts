@@ -1,29 +1,26 @@
-// Ruta: src/usuarios/usuarios.resolver.ts
-import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
+// [BACKEND] Ruta: src/usuarios/usuarios.resolver.ts
+
+import { Resolver, Query, Mutation, Args, ID, ObjectType, Field } from '@nestjs/graphql';
 import { Usuario } from './entities/usuario.entity';
-import { UsuariosService } from './usuarios.service';
-import { AgregarContactoInput } from './dto/agregar-contacto.input';
 import { CreateUsuarioInput } from './dto/create-usuario.input';
-import { VincularCuidadorInput } from './dto/vincular-cuidador.input';
+import { UsuariosService } from './usuarios.service';
+import { Medicamento } from '../medicamentos/entities/medicamento.entity';
+import { Cita } from '../citas/entities/cita.entity';
+import { RegistroToma } from '../registros-toma/entities/registro-toma.entity';
+
+@ObjectType()
+export class ResumenAdultoVinculado {
+  @Field(() => Usuario) adulto: Usuario;
+  @Field(() => [Medicamento]) medicamentos: Medicamento[];
+  @Field(() => [Cita]) citas_hoy: Cita[];
+  @Field(() => [RegistroToma]) tomas_hoy: RegistroToma[];
+}
 
 @Resolver(() => Usuario)
 export class UsuariosResolver {
   constructor(private readonly usuariosService: UsuariosService) {}
 
-  @Query(() => Usuario, { name: 'obtenerUsuario' })
-  async obtenerUsuario(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
-  ): Promise<Usuario> {
-    return this.usuariosService.findOneById(usuario_id);
-  }
-
-  @Mutation(() => Usuario, { name: 'agregarContactoEmergencia' })
-  async agregarContactoEmergencia(
-    @Args('input') input: AgregarContactoInput,
-  ): Promise<Usuario> {
-    return this.usuariosService.agregarContacto(input);
-  }
-
+  // CORRECCIÓN: Aseguramos que la mutación de registro exista
   @Mutation(() => Usuario, { name: 'registrarUsuario' })
   async registrarUsuario(
     @Args('input') input: CreateUsuarioInput,
@@ -31,18 +28,18 @@ export class UsuariosResolver {
     return this.usuariosService.registrarUsuario(input);
   }
 
-  @Mutation(() => String, { name: 'generarPinVinculacion' })
-  async generarPinVinculacion(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
-  ): Promise<string> {
-    return this.usuariosService.generarPinVinculacion(usuario_id);
-  }
-
-  @Mutation(() => Usuario, { name: 'vincularCuidador' })
-  async vincularCuidador(
-    @Args('input') input: VincularCuidadorInput,
+  @Mutation(() => Usuario, { name: 'vincularAdultoMayor' })
+  async vincularAdultoMayor(
+    @Args('cuidador_id', { type: () => ID }) cuidador_id: string,
+    @Args('correo_adulto') correo_adulto: string,
   ): Promise<Usuario> {
-    return this.usuariosService.vincularCuidador(input);
+    return this.usuariosService.vincularAdultoMayor(cuidador_id, correo_adulto);
   }
 
+  @Query(() => [ResumenAdultoVinculado], { name: 'obtenerAdultosVinculados' })
+  async obtenerAdultosVinculados(
+    @Args('cuidador_id', { type: () => ID }) cuidador_id: string,
+  ): Promise<ResumenAdultoVinculado[]> {
+    return this.usuariosService.obtenerAdultosVinculados(cuidador_id);
+  }
 }

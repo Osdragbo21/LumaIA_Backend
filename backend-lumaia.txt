@@ -1,45 +1,50 @@
 This file is a merged representation of the entire codebase, combined into a single document by Repomix.
 
-<file_summary>
-This section contains a summary of this file.
+================================================================
+File Summary
+================================================================
 
-<purpose>
+Purpose:
+--------
 This file contains a packed representation of the entire repository's contents.
 It is designed to be easily consumable by AI systems for analysis, code review,
 or other automated processes.
-</purpose>
 
-<file_format>
+File Format:
+------------
 The content is organized as follows:
 1. This summary section
 2. Repository information
 3. Directory structure
 4. Repository files (if enabled)
 5. Multiple file entries, each consisting of:
-  - File path as an attribute
-  - Full contents of the file
-</file_format>
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
 
-<usage_guidelines>
+Usage Guidelines:
+-----------------
 - This file should be treated as read-only. Any changes should be made to the
   original repository files, not this packed version.
 - When processing this file, use the file path to distinguish
   between different files in the repository.
 - Be aware that this file may contain sensitive information. Handle it with
   the same level of security as you would the original repository.
-</usage_guidelines>
 
-<notes>
+Notes:
+------
 - Some files may have been excluded based on .gitignore rules and Repomix's configuration
 - Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
 - Files matching patterns in .gitignore are excluded
 - Files matching default ignore patterns are excluded
 - Files are sorted by Git change count (files with more changes are at the bottom)
-</notes>
 
-</file_summary>
 
-<directory_structure>
+================================================================
+Directory Structure
+================================================================
 database/
   seed.js
 src/
@@ -117,12 +122,14 @@ package.json
 README.md
 tsconfig.build.json
 tsconfig.json
-</directory_structure>
 
-<files>
-This section contains the contents of the repository's files.
+================================================================
+Files
+================================================================
 
-<file path="database/seed.js">
+================
+File: database/seed.js
+================
 // 1. Limpieza de colecciones para evitar duplicados en cada ejecución
 db.usuarios.deleteMany({});
 db.medicamentos.deleteMany({});
@@ -268,117 +275,10 @@ db.logs_interaccion.insertMany([
 ]);
 
 print("✅ Datos de prueba insertados exitosamente.");
-</file>
 
-<file path="src/asistente/asistente.module.ts">
-// Ruta: src/asistente/asistente.module.ts
-import { Module } from '@nestjs/common';
-import { HttpModule } from '@nestjs/axios';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AsistenteService } from './asistente.service';
-import { AsistenteResolver } from './asistente.resolver';
-import { Medicamento, MedicamentoSchema } from '../medicamentos/entities/medicamento.entity';
-import { LogInteraccion, LogInteraccionSchema } from '../logs-interaccion/entities/log-interaccion.entity';
-
-@Module({
-  imports: [
-    HttpModule,
-    MongooseModule.forFeature([
-      { name: Medicamento.name, schema: MedicamentoSchema },
-      { name: LogInteraccion.name, schema: LogInteraccionSchema },
-    ]),
-  ],
-  providers: [AsistenteResolver, AsistenteService],
-})
-export class AsistenteModule {}
-</file>
-
-<file path="src/asistente/asistente.resolver.ts">
-// Ruta: src/asistente/asistente.resolver.ts
-import { Resolver, Mutation, Args, ID } from '@nestjs/graphql';
-import { AsistenteService } from './asistente.service';
-
-@Resolver()
-export class AsistenteResolver {
-  constructor(private readonly asistenteService: AsistenteService) {}
-
-  @Mutation(() => String, { name: 'consultarAsistente' })
-  async consultarAsistente(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
-    @Args('pregunta_id') pregunta_id: string,
-  ): Promise<string> {
-    return this.asistenteService.procesarPregunta(usuario_id, pregunta_id);
-  }
-}
-</file>
-
-<file path="src/asistente/asistente.service.ts">
-// Ruta: src/asistente/asistente.service.ts
-import { Injectable } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { firstValueFrom } from 'rxjs';
-import { GraphQLError } from 'graphql';
-import { Medicamento } from '../medicamentos/entities/medicamento.entity';
-import { LogInteraccion } from '../logs-interaccion/entities/log-interaccion.entity';
-
-@Injectable()
-export class AsistenteService {
-  constructor(
-    private readonly httpService: HttpService,
-    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
-    @InjectModel(LogInteraccion.name) private logInteraccionModel: Model<LogInteraccion>,
-  ) {}
-
-  async procesarPregunta(usuario_id: string, pregunta_id: string): Promise<string> {
-    try {
-      const objectId = new Types.ObjectId(usuario_id);
-
-      // 1. Obtener contexto: Medicamentos activos del usuario (Ignora borrado lógico)
-      const medicamentos = await this.medicamentoModel.find({ 
-        usuario_id: objectId,
-        fecha_eliminacion: { $exists: false } 
-      }).exec();
-
-      // 2. Mapear contrato para Python
-      const medicamentos_activos = medicamentos.map(med => ({
-        nombre_farmaco: med.nombre_farmaco,
-        horarios_especificos: med.horarios_especificos,
-      }));
-
-      // 3. Petición HTTP al Microservicio Lógico
-      const { data } = await firstValueFrom(
-        this.httpService.post('http://localhost:8000/evaluar', {
-          pregunta_id,
-          medicamentos_activos,
-        })
-      );
-
-      // 4. Auditoría: Guardar Log de Interacción en MongoDB
-      const nuevoLog = new this.logInteraccionModel({
-        usuario_id: objectId,
-        premisa_entrada: pregunta_id,
-        respuesta_generada: data.respuesta,
-        bloqueo_medico: false,
-        fecha_interaccion: new Date(),
-      });
-      await nuevoLog.save();
-
-      // 5. Retornar solo el string de respuesta al Frontend
-      return data.respuesta;
-
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo en el motor de inferencia: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-}
-</file>
-
-<file path="src/citas/dto/create-cita.input.ts">
+================
+File: src/citas/dto/create-cita.input.ts
+================
 // Ruta: src/citas/dto/create-cita.input.ts
 import { InputType, Field, ID } from '@nestjs/graphql';
 import { EnumEstadoCita } from '../entities/cita.entity';
@@ -400,9 +300,10 @@ export class CreateCitaInput {
   @Field(() => EnumEstadoCita, { nullable: true })
   estado?: EnumEstadoCita;
 }
-</file>
 
-<file path="src/citas/entities/cita.entity.ts">
+================
+File: src/citas/entities/cita.entity.ts
+================
 // Ruta: src/citas/entities/cita.entity.ts
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -453,9 +354,10 @@ export const CitaSchema = SchemaFactory.createForClass(Cita);
 
 // Índice TTL para destruir el documento 30 días después de ser marcado como eliminado
 CitaSchema.index({ fecha_eliminacion: 1 }, { expireAfterSeconds: 2592000 });
-</file>
 
-<file path="src/citas/citas.module.ts">
+================
+File: src/citas/citas.module.ts
+================
 // Ruta: src/citas/citas.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -471,9 +373,10 @@ import { Cita, CitaSchema } from './entities/cita.entity';
   exports: [CitasService],
 })
 export class CitasModule {}
-</file>
 
-<file path="src/logs-interaccion/logs-interaccion.module.ts">
+================
+File: src/logs-interaccion/logs-interaccion.module.ts
+================
 // Ruta: src/logs-interaccion/logs-interaccion.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -489,9 +392,10 @@ import { LogInteraccion, LogInteraccionSchema } from './entities/log-interaccion
   exports: [LogsInteraccionService],
 })
 export class LogsInteraccionModule {}
-</file>
 
-<file path="src/logs-interaccion/logs-interaccion.resolver.ts">
+================
+File: src/logs-interaccion/logs-interaccion.resolver.ts
+================
 // Ruta: src/logs-interaccion/logs-interaccion.resolver.ts
 import { Resolver, Query } from '@nestjs/graphql';
 import { LogInteraccion } from './entities/log-interaccion.entity';
@@ -503,16 +407,18 @@ export class LogsInteraccionResolver {
     return [];
   }
 }
-</file>
 
-<file path="src/logs-interaccion/logs-interaccion.service.ts">
+================
+File: src/logs-interaccion/logs-interaccion.service.ts
+================
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class LogsInteraccionService {}
-</file>
 
-<file path="src/medicamentos/dto/create-medicamento.input.ts">
+================
+File: src/medicamentos/dto/create-medicamento.input.ts
+================
 // Ruta: src/medicamentos/dto/create-medicamento.input.ts
 import { InputType, Field, Int, ID } from '@nestjs/graphql';
 
@@ -533,9 +439,10 @@ export class CreateMedicamentoInput {
     @Field(() => [String], { defaultValue: [] })
     horarios_especificos: string[];
 }
-</file>
 
-<file path="src/medicamentos/medicamentos.module.ts">
+================
+File: src/medicamentos/medicamentos.module.ts
+================
 // Ruta: src/medicamentos/medicamentos.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -551,9 +458,10 @@ import { Medicamento, MedicamentoSchema } from './entities/medicamento.entity';
   exports: [MedicamentosService],
 })
 export class MedicamentosModule {}
-</file>
 
-<file path="src/notas-personales/dto/create-nota-personal.input.ts">
+================
+File: src/notas-personales/dto/create-nota-personal.input.ts
+================
 // Ruta: src/notas-personales/dto/create-nota-personal.input.ts
 import { InputType, Field, ID } from '@nestjs/graphql';
 
@@ -568,49 +476,10 @@ export class CreateNotaPersonalInput {
   @Field()
   fecha_creacion: Date;
 }
-</file>
 
-<file path="src/registros-toma/registros-toma.module.ts">
-// Ruta: src/registros-toma/registros-toma.module.ts
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { RegistrosTomaService } from './registros-toma.service';
-import { RegistrosTomaResolver } from './registros-toma.resolver';
-import { RegistroToma, RegistroTomaSchema } from './entities/registro-toma.entity';
-
-@Module({
-  imports: [
-    MongooseModule.forFeature([{ name: RegistroToma.name, schema: RegistroTomaSchema }]),
-  ],
-  providers: [RegistrosTomaResolver, RegistrosTomaService],
-  exports: [RegistrosTomaService], // Exportable para cruzar datos con el Motor IA
-})
-export class RegistrosTomaModule {}
-</file>
-
-<file path="src/registros-toma/registros-toma.resolver.ts">
-// Ruta: src/registros-toma/registros-toma.resolver.ts
-import { Resolver, Query } from '@nestjs/graphql';
-import { RegistroToma } from './entities/registro-toma.entity';
-
-
-@Resolver(() => RegistroToma)
-export class RegistrosTomaResolver {
-  @Query(() => [RegistroToma], { name: 'registrosTomaBase' })
-  obtenerRegistrosToma(): RegistroToma[] {
-    return [];
-  }
-}
-</file>
-
-<file path="src/registros-toma/registros-toma.service.ts">
-import { Injectable } from '@nestjs/common';
-
-@Injectable()
-export class RegistrosTomaService {}
-</file>
-
-<file path="src/usuarios/dto/agregar-contacto.input.ts">
+================
+File: src/usuarios/dto/agregar-contacto.input.ts
+================
 // Ruta: src/usuarios/dto/agregar-contacto.input.ts
 import { InputType, Field, ID } from '@nestjs/graphql';
 
@@ -628,9 +497,10 @@ export class AgregarContactoInput {
   @Field()
   parentesco: string;
 }
-</file>
 
-<file path="src/usuarios/dto/vincular-cuidador.input.ts">
+================
+File: src/usuarios/dto/vincular-cuidador.input.ts
+================
 // Ruta: src/usuarios/dto/vincular-cuidador.input.ts
 import { InputType, Field, ID } from '@nestjs/graphql';
 
@@ -642,27 +512,38 @@ export class VincularCuidadorInput {
   @Field()
   pin: string;
 }
-</file>
 
-<file path="src/usuarios/usuarios.module.ts">
-// Ruta: src/usuarios/usuarios.module.ts
+================
+File: src/usuarios/usuarios.module.ts
+================
+// [BACKEND] Ruta: src/usuarios/usuarios.module.ts
+
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsuariosService } from './usuarios.service';
 import { UsuariosResolver } from './usuarios.resolver';
 import { Usuario, UsuarioSchema } from './entities/usuario.entity';
+import { Medicamento, MedicamentoSchema } from '../medicamentos/entities/medicamento.entity';
+import { Cita, CitaSchema } from '../citas/entities/cita.entity';
+import { RegistroToma, RegistroTomaSchema } from '../registros-toma/entities/registro-toma.entity';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Usuario.name, schema: UsuarioSchema }]),
+    MongooseModule.forFeature([
+      { name: Usuario.name, schema: UsuarioSchema },
+      { name: Medicamento.name, schema: MedicamentoSchema },
+      { name: Cita.name, schema: CitaSchema },
+      { name: RegistroToma.name, schema: RegistroTomaSchema }
+    ]),
   ],
   providers: [UsuariosResolver, UsuariosService],
-  exports: [UsuariosService], // Exportado para uso futuro en Auth o Motor IA
+  exports: [UsuariosService],
 })
 export class UsuariosModule {}
-</file>
 
-<file path="src/app.controller.spec.ts">
+================
+File: src/app.controller.spec.ts
+================
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -685,9 +566,10 @@ describe('AppController', () => {
     });
   });
 });
-</file>
 
-<file path="src/app.controller.ts">
+================
+File: src/app.controller.ts
+================
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 
@@ -700,9 +582,10 @@ export class AppController {
     return this.appService.getHello();
   }
 }
-</file>
 
-<file path="src/app.resolver.ts">
+================
+File: src/app.resolver.ts
+================
 // Ruta: src/app.resolver.ts
 import { Query, Resolver } from '@nestjs/graphql';
 
@@ -713,9 +596,10 @@ export class AppResolver {
     return 'LumaIA Core API v1.0 running - MongoDB & GraphQL Ready';
   }
 }
-</file>
 
-<file path="src/app.service.ts">
+================
+File: src/app.service.ts
+================
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -724,9 +608,10 @@ export class AppService {
     return 'Hello World!';
   }
 }
-</file>
 
-<file path="test/app.e2e-spec.ts">
+================
+File: test/app.e2e-spec.ts
+================
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -752,9 +637,10 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 });
-</file>
 
-<file path="test/jest-e2e.json">
+================
+File: test/jest-e2e.json
+================
 {
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
@@ -764,9 +650,10 @@ describe('AppController (e2e)', () => {
     "^.+\\.(t|j)s$": "ts-jest"
   }
 }
-</file>
 
-<file path=".gitignore">
+================
+File: .gitignore
+================
 # compiled output
 /dist
 /node_modules
@@ -823,16 +710,18 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-</file>
 
-<file path=".prettierrc">
+================
+File: .prettierrc
+================
 {
   "singleQuote": true,
   "trailingComma": "all"
 }
-</file>
 
-<file path="eslint.config.mjs">
+================
+File: eslint.config.mjs
+================
 // @ts-check
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
@@ -868,9 +757,10 @@ export default tseslint.config(
     },
   },
 );
-</file>
 
-<file path="nest-cli.json">
+================
+File: nest-cli.json
+================
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
@@ -879,16 +769,18 @@ export default tseslint.config(
     "deleteOutDir": true
   }
 }
-</file>
 
-<file path="tsconfig.build.json">
+================
+File: tsconfig.build.json
+================
 {
   "extends": "./tsconfig.json",
   "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
 }
-</file>
 
-<file path="tsconfig.json">
+================
+File: tsconfig.json
+================
 // Ruta: tsconfig.json
 {
   "compilerOptions": {
@@ -912,9 +804,43 @@ export default tseslint.config(
     "noFallthroughCasesInSwitch": false
   }
 }
-</file>
 
-<file path="src/auth/dto/login-response.dto.ts">
+================
+File: src/asistente/asistente.resolver.ts
+================
+// [BACKEND] Ruta: src/asistente/asistente.resolver.ts
+
+import { Resolver, Mutation, Args, ID, ObjectType, Field } from '@nestjs/graphql';
+import { AsistenteService } from './asistente.service';
+
+// 1. Definimos la nueva estructura de respuesta para GraphQL (JSON Estructurado)
+@ObjectType()
+export class AsistenteResponse {
+  @Field()
+  respuesta_texto: string;
+
+  @Field()
+  intencion: string;
+}
+
+@Resolver()
+export class AsistenteResolver {
+  constructor(private readonly asistenteService: AsistenteService) {}
+
+  @Mutation(() => AsistenteResponse, { name: 'consultarAsistente' })
+  async consultarAsistente(
+    @Args('usuario_id', { type: () => ID }) usuario_id: string,
+    @Args('pregunta_id') pregunta_id: string,
+    @Args('modelo', { type: () => String, nullable: true }) modelo?: string,
+  ): Promise<AsistenteResponse> {
+    // Delegamos al servicio y retornamos el objeto estructurado
+    return this.asistenteService.procesarPregunta(usuario_id, pregunta_id, modelo);
+  }
+}
+
+================
+File: src/auth/dto/login-response.dto.ts
+================
 // Ruta: src/auth/dto/login-response.dto.ts
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { Enum_Rol } from '../../usuarios/entities/usuario.entity';
@@ -930,9 +856,10 @@ export class LoginResponse {
   @Field(() => Enum_Rol)
   rol: Enum_Rol;
 }
-</file>
 
-<file path="src/auth/auth.module.ts">
+================
+File: src/auth/auth.module.ts
+================
 // Ruta: src/auth/auth.module.ts
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
@@ -953,9 +880,10 @@ import { Usuario, UsuarioSchema } from '../usuarios/entities/usuario.entity';
   providers: [AuthResolver, AuthService],
 })
 export class AuthModule {}
-</file>
 
-<file path="src/auth/auth.service.ts">
+================
+File: src/auth/auth.service.ts
+================
 // Ruta: src/auth/auth.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -1002,9 +930,10 @@ export class AuthService {
     };
   }
 }
-</file>
 
-<file path="src/citas/citas.resolver.ts">
+================
+File: src/citas/citas.resolver.ts
+================
 // Ruta: src/citas/citas.resolver.ts
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { Cita } from './entities/cita.entity';
@@ -1029,9 +958,10 @@ export class CitasResolver {
     return this.citasService.create(createCitaInput);
   }
 }
-</file>
 
-<file path="src/citas/citas.service.ts">
+================
+File: src/citas/citas.service.ts
+================
 // Ruta: src/citas/citas.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -1081,9 +1011,10 @@ export class CitasService {
     }
   }
 }
-</file>
 
-<file path="src/logs-interaccion/entities/log-interaccion.entity.ts">
+================
+File: src/logs-interaccion/entities/log-interaccion.entity.ts
+================
 // Ruta: src/logs-interaccion/entities/log-interaccion.entity.ts
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -1117,9 +1048,10 @@ export class LogInteraccion extends Document {
 }
 
 export const LogInteraccionSchema = SchemaFactory.createForClass(LogInteraccion);
-</file>
 
-<file path="src/medicamentos/entities/medicamento.entity.ts">
+================
+File: src/medicamentos/entities/medicamento.entity.ts
+================
 // Ruta: src/medicamentos/entities/medicamento.entity.ts
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -1158,9 +1090,10 @@ export class Medicamento extends Document {
 
 export const MedicamentoSchema = SchemaFactory.createForClass(Medicamento);
 MedicamentoSchema.index({ fecha_eliminacion: 1 }, { expireAfterSeconds: 2592000 });
-</file>
 
-<file path="src/notas-personales/entities/nota-personal.entity.ts">
+================
+File: src/notas-personales/entities/nota-personal.entity.ts
+================
 // Ruta: src/notas-personales/entities/nota-personal.entity.ts
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -1190,9 +1123,10 @@ export class NotaPersonal extends Document {
 
 export const NotaPersonalSchema = SchemaFactory.createForClass(NotaPersonal);
 NotaPersonalSchema.index({ fecha_eliminacion: 1 }, { expireAfterSeconds: 2592000 });
-</file>
 
-<file path="src/notas-personales/notas-personales.module.ts">
+================
+File: src/notas-personales/notas-personales.module.ts
+================
 // Ruta: src/notas-personales/notas-personales.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -1209,9 +1143,10 @@ import { NotaPersonal, NotaPersonalSchema } from './entities/nota-personal.entit
   exports: [NotasPersonalesService],
 })
 export class NotasPersonalesModule {}
-</file>
 
-<file path="src/notas-personales/notas-personales.resolver.ts">
+================
+File: src/notas-personales/notas-personales.resolver.ts
+================
 // Ruta: src/notas-personales/notas-personales.resolver.ts
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { NotaPersonal } from './entities/nota-personal.entity';
@@ -1236,9 +1171,31 @@ export class NotasPersonalesResolver {
     return this.notasPersonalesService.create(createNotaPersonalInput);
   }
 }
-</file>
 
-<file path="src/usuarios/dto/create-usuario.input.ts">
+================
+File: src/registros-toma/registros-toma.module.ts
+================
+// Ruta: src/registros-toma/registros-toma.module.ts
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { RegistrosTomaService } from './registros-toma.service';
+import { RegistrosTomaResolver } from './registros-toma.resolver';
+import { RegistroToma, RegistroTomaSchema } from './entities/registro-toma.entity';
+import { Medicamento, MedicamentoSchema } from '../medicamentos/entities/medicamento.entity';
+
+@Module({
+  imports: [
+    MongooseModule.forFeature([{ name: RegistroToma.name, schema: RegistroTomaSchema }]),
+    MongooseModule.forFeature([{ name: Medicamento.name, schema: MedicamentoSchema }]), // Inyectamos el modelo de Medicamento
+  ],
+  providers: [RegistrosTomaResolver, RegistrosTomaService],
+  exports: [RegistrosTomaService], // Exportable para cruzar datos con el Motor IA
+})
+export class RegistrosTomaModule {}
+
+================
+File: src/usuarios/dto/create-usuario.input.ts
+================
 // Ruta: src/usuarios/dto/create-usuario.input.ts
 import { InputType, Field } from '@nestjs/graphql';
 import { IsEmail, MinLength } from 'class-validator';
@@ -1260,10 +1217,12 @@ export class CreateUsuarioInput {
   @Field(() => Enum_Rol)
   rol: Enum_Rol;
 }
-</file>
 
-<file path="src/usuarios/entities/usuario.entity.ts">
-// Ruta: src/usuarios/entities/usuario.entity.ts
+================
+File: src/usuarios/entities/usuario.entity.ts
+================
+// [BACKEND] Ruta: src/usuarios/entities/usuario.entity.ts
+
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
@@ -1295,7 +1254,7 @@ export class Usuario extends Document {
   nombre: string;
 
   @Field()
-  @Prop({ required: true, unique: true }) // Restricción de unicidad
+  @Prop({ required: true, unique: true })
   correo: string;
 
   @Field()
@@ -1310,12 +1269,17 @@ export class Usuario extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Usuario' })
   cuidador_vinculado_id?: Types.ObjectId;
 
+  // NUEVO: Array para el Cuidador
+  @Field(() => [ID])
+  @Prop({ type: [Types.ObjectId], ref: 'Usuario', default: [] })
+  adultos_vinculados: Types.ObjectId[];
+
   @Field({ nullable: true })
   @Prop()
   pin_vinculacion?: string;
 
   @Field()
-  @Prop({ default: true }) // Borrado Lógico
+  @Prop({ default: true })
   estado_activo: boolean;
 
   @Field(() => [String])
@@ -1328,9 +1292,39 @@ export class Usuario extends Document {
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
-</file>
 
-<file path="src/auth/auth.resolver.ts">
+================
+File: src/asistente/asistente.module.ts
+================
+// [BACKEND] Ruta: src/asistente/asistente.module.ts
+
+import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
+import { MongooseModule } from '@nestjs/mongoose';
+import { AsistenteService } from './asistente.service';
+import { AsistenteResolver } from './asistente.resolver';
+import { Medicamento, MedicamentoSchema } from '../medicamentos/entities/medicamento.entity';
+import { LogInteraccion, LogInteraccionSchema } from '../logs-interaccion/entities/log-interaccion.entity';
+import { Cita, CitaSchema } from '../citas/entities/cita.entity'; // <-- NUEVO
+import { RegistroToma, RegistroTomaSchema } from '../registros-toma/entities/registro-toma.entity';
+
+@Module({
+  imports: [
+    HttpModule,
+    MongooseModule.forFeature([
+      { name: Medicamento.name, schema: MedicamentoSchema },
+      { name: LogInteraccion.name, schema: LogInteraccionSchema },
+      { name: Cita.name, schema: CitaSchema }, // <-- NUEVO
+    ]),
+    MongooseModule.forFeature([{ name: RegistroToma.name, schema: RegistroTomaSchema }]), // <-- NUEVO
+  ],
+  providers: [AsistenteResolver, AsistenteService],
+})
+export class AsistenteModule {}
+
+================
+File: src/auth/auth.resolver.ts
+================
 // Ruta: src/auth/auth.resolver.ts
 import { Resolver, Mutation, Args } from '@nestjs/graphql';
 import { LoginResponse } from './dto/login-response.dto';
@@ -1349,9 +1343,10 @@ export class AuthResolver {
     return this.authService.validarUsuario(correo, password_plana);
   }
 }
-</file>
 
-<file path="src/notas-personales/notas-personales.service.ts">
+================
+File: src/notas-personales/notas-personales.service.ts
+================
 // Ruta: src/notas-personales/notas-personales.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -1399,9 +1394,10 @@ export class NotasPersonalesService {
     }
   }
 }
-</file>
 
-<file path="src/registros-toma/entities/registro-toma.entity.ts">
+================
+File: src/registros-toma/entities/registro-toma.entity.ts
+================
 // Ruta: src/registros-toma/entities/registro-toma.entity.ts
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -1438,29 +1434,114 @@ export class RegistroToma extends Document {
 }
 
 export const RegistroTomaSchema = SchemaFactory.createForClass(RegistroToma);
-</file>
 
-<file path="src/main.ts">
-// Ruta: src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+================
+File: src/registros-toma/registros-toma.resolver.ts
+================
+// [BACKEND] Ruta: src/registros-toma/registros-toma.resolver.ts
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  // Habilitar CORS para que el frontend React se conecte sin problemas
-  app.enableCors();
-  
-  // CRÍTICO: Activar validación global basada en DTOs
-  app.useGlobalPipes(new ValidationPipe());
-  
-  await app.listen(3000);
+import { Resolver, Mutation, Query, Args, ID } from '@nestjs/graphql';
+import { RegistroToma } from './entities/registro-toma.entity';
+import { RegistrosTomaService } from './registros-toma.service';
+
+@Resolver(() => RegistroToma)
+export class RegistrosTomaResolver {
+  constructor(private readonly registrosTomaService: RegistrosTomaService) {}
+
+  @Query(() => [RegistroToma], { name: 'registrosTomaBase' })
+  obtenerRegistrosToma(): RegistroToma[] {
+    return [];
+  }
+
+  @Mutation(() => RegistroToma, { name: 'confirmarTomaMedicamento' })
+  async confirmarTomaMedicamento(
+    @Args('medicamento_id', { type: () => ID }) medicamento_id: string,
+  ): Promise<RegistroToma> {
+    return this.registrosTomaService.confirmarToma(medicamento_id);
+  }
+
+  // NUEVA QUERY PARA EL FRONTEND
+  @Query(() => [RegistroToma], { name: 'obtenerTomasHoy' })
+  async obtenerTomasHoy(
+    @Args('usuario_id', { type: () => ID }) usuario_id: string,
+  ): Promise<RegistroToma[]> {
+    return this.registrosTomaService.obtenerTomasHoy(usuario_id);
+  }
 }
-bootstrap();
-</file>
 
-<file path="package.json">
+================
+File: src/registros-toma/registros-toma.service.ts
+================
+// [BACKEND] Ruta: src/registros-toma/registros-toma.service.ts
+
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { GraphQLError } from 'graphql';
+import { RegistroToma, Enum_EstadoToma } from './entities/registro-toma.entity';
+import { Medicamento } from '../medicamentos/entities/medicamento.entity';
+
+
+@Injectable()
+export class RegistrosTomaService {
+  constructor(
+    @InjectModel(RegistroToma.name) private registroTomaModel: Model<RegistroToma>,
+    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>, // Inyectamos Medicamento
+  ) {}
+
+  async confirmarToma(medicamento_id: string): Promise<RegistroToma> {
+    try {
+      const nuevaToma = new this.registroTomaModel({
+        medicamento_id: new Types.ObjectId(medicamento_id),
+        fecha_programada: new Date(), 
+        estado_toma: Enum_EstadoToma.CONFIRMADA,
+        fecha_confirmacion: new Date(),
+      });
+      
+      return await nuevaToma.save();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al registrar la toma: ${errorMessage}`, {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+  }
+
+  // NUEVO: Obtener las tomas confirmadas del día actual
+  async obtenerTomasHoy(usuario_id: string): Promise<RegistroToma[]> {
+    try {
+      const usuarioObjectId = new Types.ObjectId(usuario_id);
+
+      // 1. Obtener los IDs de todos los medicamentos de este usuario
+      const medicamentosUsuario = await this.medicamentoModel.find({ usuario_id: usuarioObjectId }).exec();
+      const idsMedicamentos = medicamentosUsuario.map(med => med._id);
+
+      // 2. Definir el rango del día actual (00:00:00 a 23:59:59)
+      const inicioDia = new Date();
+      inicioDia.setHours(0, 0, 0, 0);
+      
+      const finDia = new Date();
+      finDia.setHours(23, 59, 59, 999);
+
+      // 3. Buscar los registros de hoy que estén confirmados
+      return await this.registroTomaModel.find({
+        medicamento_id: { $in: idsMedicamentos },
+        estado_toma: Enum_EstadoToma.CONFIRMADA,
+        fecha_confirmacion: { $gte: inicioDia, $lte: finDia }
+      }).exec();
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al consultar las tomas de hoy: ${errorMessage}`, {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+  }
+}
+
+================
+File: package.json
+================
 {
   "name": "lumaia-backend",
   "version": "0.0.1",
@@ -1547,9 +1628,10 @@ bootstrap();
     "testEnvironment": "node"
   }
 }
-</file>
 
-<file path="README.md">
+================
+File: README.md
+================
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
@@ -1650,9 +1732,164 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 # LumaIA_Backend
 # LumaIA_Backend_2.0
-</file>
 
-<file path="src/medicamentos/medicamentos.resolver.ts">
+================
+File: src/asistente/asistente.service.ts
+================
+// [BACKEND] Ruta: src/asistente/asistente.service.ts
+
+import { Injectable } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { firstValueFrom } from 'rxjs';
+import { GraphQLError } from 'graphql';
+import { Medicamento } from '../medicamentos/entities/medicamento.entity';
+import { LogInteraccion } from '../logs-interaccion/entities/log-interaccion.entity';
+import { Cita } from '../citas/entities/cita.entity';
+import { RegistroToma, Enum_EstadoToma } from '../registros-toma/entities/registro-toma.entity';
+
+interface IAsistenteResponse {
+  respuesta_texto: string;
+  intencion: string;
+}
+
+@Injectable()
+export class AsistenteService {
+  constructor(
+    private readonly httpService: HttpService,
+    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
+    @InjectModel(LogInteraccion.name) private logInteraccionModel: Model<LogInteraccion>,
+    @InjectModel(Cita.name) private citaModel: Model<Cita>,
+    @InjectModel(RegistroToma.name) private registroTomaModel: Model<RegistroToma>,
+  ) {}
+
+  private clasificarIntencionRapida(pregunta: string): string {
+    const p = pregunta.toLowerCase();
+    if (p.includes('agregar') || p.includes('nuevo') || p.includes('crear') || p.includes('registrar')) {
+      if (p.includes('medicina') || p.includes('pastilla') || p.includes('tratamiento')) return 'ACCION_NUEVO_MEDICAMENTO';
+      if (p.includes('cita') || p.includes('doctor') || p.includes('consulta')) return 'ACCION_NUEVA_CITA';
+      if (p.includes('contacto') || p.includes('familiar') || p.includes('apoyo')) return 'ACCION_NUEVO_CONTACTO';
+    }
+    return 'CONSULTA_GENERAL';
+  }
+
+  private parsearRespuestaJSON(respuestaRaw: string, intencionRespaldo: string): IAsistenteResponse {
+    try {
+      const cleanJson = respuestaRaw.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      return {
+        respuesta_texto: parsed.respuesta_texto ? parsed.respuesta_texto.replace(/"/g, '') : "Lo siento, no pude procesar eso.",
+        intencion: parsed.intencion || intencionRespaldo
+      };
+    } catch (error) {
+      return {
+        respuesta_texto: respuestaRaw.replace(/"/g, ''),
+        intencion: intencionRespaldo
+      };
+    }
+  }
+
+  async procesarPregunta(usuario_id: string, pregunta_id: string, modelo: string = 'Luma Cloud'): Promise<IAsistenteResponse> {
+    try {
+      const objectId = new Types.ObjectId(usuario_id);
+
+      // --- A. EXTRACCIÓN DE CONTEXTO ---
+      const medicamentos = await this.medicamentoModel.find({ usuario_id: objectId, fecha_eliminacion: { $exists: false } }).exec();
+      const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
+      const finDia = new Date(); finDia.setHours(23, 59, 59, 999);
+
+      const citasHoyDocs = await this.citaModel.find({ usuario_id: objectId, fecha_eliminacion: { $exists: false }, fecha_hora: { $gte: inicioDia, $lte: finDia } }).exec();
+      const tomasHoyDocs = await this.registroTomaModel.find({
+        medicamento_id: { $in: medicamentos.map(m => m._id) },
+        estado_toma: Enum_EstadoToma.CONFIRMADA,
+        fecha_confirmacion: { $gte: inicioDia, $lte: finDia }
+      }).exec();
+
+      // CORRECCIÓN CRÍTICA: Aseguramos que los IDs se comparen estrictamente como Strings
+      const idsTomadosHoy = tomasHoyDocs.map(t => t.medicamento_id.toString());
+      const medicamentos_activos = medicamentos.map(med => ({ id: med._id.toString(), nombre_farmaco: med.nombre_farmaco, horarios_especificos: med.horarios_especificos }));
+      
+      const citas_hoy = citasHoyDocs.map(cita => ({ titulo_evento: cita.titulo_evento, fecha_hora: cita.fecha_hora.toISOString(), ubicacion: cita.ubicacion || 'Sin ubicación' }));
+      const medsPendientes = medicamentos_activos.filter(m => !idsTomadosHoy.includes(m.id));
+      const medsTomados = medicamentos_activos.filter(m => idsTomadosHoy.includes(m.id));
+
+      // --- B. CONSTRUCCIÓN DEL SYSTEM PROMPT CENTRALIZADO ---
+      const systemPrompt = `
+        Eres Luma, el asistente personal del usuario. 
+        REGLAS ESTRICTAS:
+        1. Háblale SIEMPRE de "tú" de forma muy cálida y humana.
+        2. Los nombres en la lista de "Medicamentos" son NOMBRES COMERCIALES DE MEDICINAS. NUNCA los interpretes como estudios de laboratorio, procedimientos ni pruebas médicas, sin importar lo raros que suenen.
+        3. Sé extremadamente breve y nunca uses comillas para envolver tu respuesta.
+        4. Responde ÚNICAMENTE entregando un objeto JSON válido con este formato exacto: {"respuesta_texto": "Tu respuesta", "intencion": "TIPO_DE_INTENCION"}
+        5. Intenciones válidas: CONSULTA_GENERAL, ACCION_NUEVO_MEDICAMENTO, ACCION_NUEVA_CITA.
+
+        CONTEXTO HOY:
+        - Citas: ${citas_hoy.map(c => c.titulo_evento).join(', ') || 'Ninguna'}.
+        - Medicamentos YA TOMADOS: ${medsTomados.map(m => m.nombre_farmaco).join(', ') || 'Ninguno'}.
+        - Medicamentos PENDIENTES por tomar: ${medsPendientes.map(m => m.nombre_farmaco).join(', ') || 'Ninguno'}.
+
+        EL USUARIO DICE: "${pregunta_id}"
+      `;
+
+      const intencionRapida = this.clasificarIntencionRapida(pregunta_id);
+      let resultadoFinal: IAsistenteResponse;
+
+      // --- C. ENRUTADOR DE MODELOS IA (Una sola pasada) ---
+      if (modelo === 'Llama 3.2 Local') {
+        const ollamaPayload = {
+          model: "llama3.2",
+          prompt: systemPrompt,
+          format: "json", 
+          stream: false
+        };
+
+        const { data } = await firstValueFrom(
+          this.httpService.post('http://127.0.0.1:11434/api/generate', ollamaPayload)
+        );
+        resultadoFinal = this.parsearRespuestaJSON(data.response, intencionRapida);
+      } else {
+        const { data } = await firstValueFrom(
+          this.httpService.post('http://localhost:8000/evaluar', {
+            pregunta_id,
+            medicamentos_activos,
+            citas: citas_hoy,
+            tomas_hoy_ids: idsTomadosHoy,
+            prompt_forzado: systemPrompt 
+          })
+        );
+        if (data.respuesta_texto && data.intencion) {
+          resultadoFinal = { respuesta_texto: data.respuesta_texto, intencion: data.intencion };
+        } else if (data.respuesta) {
+          resultadoFinal = this.parsearRespuestaJSON(data.respuesta, intencionRapida);
+        } else {
+          resultadoFinal = { respuesta_texto: "Lo siento, hubo un problema al generar la respuesta.", intencion: 'CONSULTA_GENERAL' };
+        }
+      }
+
+      // --- D. AUDITORÍA ---
+      const nuevoLog = new this.logInteraccionModel({
+        usuario_id: objectId,
+        premisa_entrada: pregunta_id,
+        respuesta_generada: resultadoFinal.respuesta_texto,
+        bloqueo_medico: false,
+        fecha_interaccion: new Date(),
+      });
+      await nuevoLog.save();
+
+      return resultadoFinal;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Fallo en el motor de inferencia: ${errorMessage}`, {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+  }
+}
+
+================
+File: src/medicamentos/medicamentos.resolver.ts
+================
 // Ruta: src/medicamentos/medicamentos.resolver.ts
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { Medicamento } from './entities/medicamento.entity';
@@ -1678,261 +1915,132 @@ export class MedicamentosResolver {
     return this.medicamentosService.create(createMedicamentoInput);
   }
 }
-</file>
 
-<file path="src/medicamentos/medicamentos.service.ts">
-// Ruta: src/medicamentos/medicamentos.service.ts
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { GraphQLError } from 'graphql';
-import { Medicamento } from './entities/medicamento.entity';
-import { CreateMedicamentoInput } from './dto/create-medicamento.input';
+================
+File: src/usuarios/usuarios.resolver.ts
+================
+// [BACKEND] Ruta: src/usuarios/usuarios.resolver.ts
 
-@Injectable()
-export class MedicamentosService {
-  constructor(
-    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
-  ) {}
-
-  async create(input: CreateMedicamentoInput): Promise<Medicamento> {
-    try {
-      const usuarioObjectId = new Types.ObjectId(input.usuario_id);
-      const nuevoMedicamento = new this.medicamentoModel({
-        ...input,
-        usuario_id: usuarioObjectId,
-      });
-      return await nuevoMedicamento.save();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al guardar el medicamento: ${errorMessage}`, {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
-    }
-  }
-
-  // NUEVO MÉTODO DE LECTURA
-  async findAllByUserId(usuario_id: string): Promise<Medicamento[]> {
-    try {
-      const usuarioObjectId = new Types.ObjectId(usuario_id);
-      // Busca todos los medicamentos de este usuario que no hayan sido marcados para borrado lógico (TTL)
-      return await this.medicamentoModel.find({ 
-        usuario_id: usuarioObjectId,
-        fecha_eliminacion: { $exists: false } 
-      }).exec();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Error al consultar medicamentos: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-}
-</file>
-
-<file path="src/usuarios/usuarios.resolver.ts">
-// Ruta: src/usuarios/usuarios.resolver.ts
-import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ID, ObjectType, Field } from '@nestjs/graphql';
 import { Usuario } from './entities/usuario.entity';
 import { UsuariosService } from './usuarios.service';
-import { AgregarContactoInput } from './dto/agregar-contacto.input';
-import { CreateUsuarioInput } from './dto/create-usuario.input';
-import { VincularCuidadorInput } from './dto/vincular-cuidador.input';
+import { Medicamento } from '../medicamentos/entities/medicamento.entity';
+import { Cita } from '../citas/entities/cita.entity';
+import { RegistroToma } from '../registros-toma/entities/registro-toma.entity';
+
+@ObjectType()
+export class ResumenAdultoVinculado {
+  @Field(() => Usuario) adulto: Usuario;
+  @Field(() => [Medicamento]) medicamentos: Medicamento[];
+  @Field(() => [Cita]) citas_hoy: Cita[];
+  @Field(() => [RegistroToma]) tomas_hoy: RegistroToma[];
+}
 
 @Resolver(() => Usuario)
 export class UsuariosResolver {
   constructor(private readonly usuariosService: UsuariosService) {}
 
-  @Query(() => Usuario, { name: 'obtenerUsuario' })
-  async obtenerUsuario(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
+  // ... MANTÉN TUS MÉTODOS EXISTENTES ...
+
+  @Mutation(() => Usuario, { name: 'vincularAdultoMayor' })
+  async vincularAdultoMayor(
+    @Args('cuidador_id', { type: () => ID }) cuidador_id: string,
+    @Args('correo_adulto') correo_adulto: string,
   ): Promise<Usuario> {
-    return this.usuariosService.findOneById(usuario_id);
+    return this.usuariosService.vincularAdultoMayor(cuidador_id, correo_adulto);
   }
 
-  @Mutation(() => Usuario, { name: 'agregarContactoEmergencia' })
-  async agregarContactoEmergencia(
-    @Args('input') input: AgregarContactoInput,
-  ): Promise<Usuario> {
-    return this.usuariosService.agregarContacto(input);
+  @Query(() => [ResumenAdultoVinculado], { name: 'obtenerAdultosVinculados' })
+  async obtenerAdultosVinculados(
+    @Args('cuidador_id', { type: () => ID }) cuidador_id: string,
+  ): Promise<ResumenAdultoVinculado[]> {
+    return this.usuariosService.obtenerAdultosVinculados(cuidador_id);
   }
-
-  @Mutation(() => Usuario, { name: 'registrarUsuario' })
-  async registrarUsuario(
-    @Args('input') input: CreateUsuarioInput,
-  ): Promise<Usuario> {
-    return this.usuariosService.registrarUsuario(input);
-  }
-
-  @Mutation(() => String, { name: 'generarPinVinculacion' })
-  async generarPinVinculacion(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
-  ): Promise<string> {
-    return this.usuariosService.generarPinVinculacion(usuario_id);
-  }
-
-  @Mutation(() => Usuario, { name: 'vincularCuidador' })
-  async vincularCuidador(
-    @Args('input') input: VincularCuidadorInput,
-  ): Promise<Usuario> {
-    return this.usuariosService.vincularCuidador(input);
-  }
-
 }
-</file>
 
-<file path="src/usuarios/usuarios.service.ts">
-// Ruta: src/usuarios/usuarios.service.ts
+================
+File: src/usuarios/usuarios.service.ts
+================
+// [BACKEND] Ruta: src/usuarios/usuarios.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GraphQLError } from 'graphql';
 import * as bcrypt from 'bcrypt';
 import { Usuario } from './entities/usuario.entity';
-import { AgregarContactoInput } from './dto/agregar-contacto.input';
-import { CreateUsuarioInput } from './dto/create-usuario.input';
-import { VincularCuidadorInput } from './dto/vincular-cuidador.input';
+import { Medicamento } from '../medicamentos/entities/medicamento.entity';
+import { Cita } from '../citas/entities/cita.entity';
+import { RegistroToma, Enum_EstadoToma } from '../registros-toma/entities/registro-toma.entity';
 
 @Injectable()
 export class UsuariosService {
   constructor(
     @InjectModel(Usuario.name) private usuarioModel: Model<Usuario>,
+    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
+    @InjectModel(Cita.name) private citaModel: Model<Cita>,
+    @InjectModel(RegistroToma.name) private registroTomaModel: Model<RegistroToma>,
   ) {}
 
-  // 1. Obtener perfil completo
-  async findOneById(usuario_id: string): Promise<Usuario> {
-    try {
-      const objectId = new Types.ObjectId(usuario_id);
-      const usuario = await this.usuarioModel.findById(objectId).exec();
-      if (!usuario) throw new Error('Usuario no encontrado');
-      return usuario;
-    } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Error al obtener perfil: ${errorMessage}`, {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
-    }
-  }
+  // ... (MANTÉN TUS MÉTODOS ACTUALES DE REGISTRO, BUSCAR POR ID, AGREGAR CONTACTO, ETC.) ...
 
-  // 2. Agregar contacto al arreglo usando modificador atómico $push
-  async agregarContacto(input: AgregarContactoInput): Promise<Usuario> {
+  // NUEVO: Vincular por correo
+  async vincularAdultoMayor(cuidador_id: string, correo_adulto: string): Promise<Usuario> {
     try {
-      const { usuario_id, ...nuevoContacto } = input;
-      const objectId = new Types.ObjectId(usuario_id);
-
-      const usuarioActualizado = await this.usuarioModel.findByIdAndUpdate(
-        objectId,
-        { $push: { contactos_emergencia: nuevoContacto } },
-        { new: true } // Retorna el documento actualizado
-      ).exec();
-
-      if (!usuarioActualizado) throw new Error('Usuario no encontrado');
-      return usuarioActualizado;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al agregar contacto: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-  
-  async registrarUsuario(input: CreateUsuarioInput): Promise<Usuario> {
-    try {
-      const { password, ...restoDatos } = input;
+      const cuidadorObjectId = new Types.ObjectId(cuidador_id);
       
-      // 1. Generar Hash con bcrypt (Cumplimiento RNF-06)
-      const salt = await bcrypt.genSalt(10);
-      const password_hash = await bcrypt.hash(password, salt);
+      const adulto = await this.usuarioModel.findOne({ correo: correo_adulto, rol: 'Adulto Mayor' }).exec();
+      if (!adulto) throw new Error('No se encontró un Adulto Mayor con ese correo.');
 
-      // 2. Instanciar documento con los campos iniciales requeridos
-      const nuevoUsuario = new this.usuarioModel({
-        ...restoDatos,
-        password_hash,
-        estado_activo: true,
-        tokens_dispositivo: [],
-        contactos_emergencia: [],
-      });
-
-      // 3. Guardar en MongoDB Atlas
-      return await nuevoUsuario.save();
-    } catch (error) {
-      // Manejo de restricción de unicidad de correo (Error 11000 en MongoDB)
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 11000
-      ) {
-        throw new GraphQLError('El correo electrónico ya está registrado.', {
-          extensions: { code: 'CONFLICT' },
-        });
-      }
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al registrar usuario: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-
-  async generarPinVinculacion(usuario_id: string): Promise<string> {
-    try {
-      const objectId = new Types.ObjectId(usuario_id);
-      // Generar un PIN aleatorio de 6 dígitos
-      const pin = Math.floor(100000 + Math.random() * 900000).toString(); 
-      
-      const usuario = await this.usuarioModel.findByIdAndUpdate(
-        objectId,
-        { pin_vinculacion: pin },
-        { returnDocument: 'after' }
-      ).exec();
-
-      if (!usuario) throw new Error(`El ID ${usuario_id} no existe.`);
-      return usuario.pin_vinculacion;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al generar PIN: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-
-  // 2. Vincular Cuenta (Para el Cuidador)
-  async vincularCuidador(input: VincularCuidadorInput): Promise<Usuario> {
-    try {
-      const cuidadorObjectId = new Types.ObjectId(input.cuidador_id);
-
-      // Buscar al Adulto Mayor que posea el PIN ingresado
-      const adultoMayor = await this.usuarioModel.findOne({ pin_vinculacion: input.pin }).exec();
-      
-      if (!adultoMayor) {
-        throw new GraphQLError('El PIN ingresado es inválido o ya expiró.', { 
-          extensions: { code: 'BAD_USER_INPUT' } 
-        });
-      }
-
-      // Actualizar al Adulto Mayor: asignar su cuidador y eliminar el PIN usado ($unset)
-      await this.usuarioModel.findByIdAndUpdate(adultoMayor._id, {
-        cuidador_vinculado_id: cuidadorObjectId,
-        $unset: { pin_vinculacion: "" } 
+      // Agregamos al cuidador
+      await this.usuarioModel.findByIdAndUpdate(cuidadorObjectId, {
+        $addToSet: { adultos_vinculados: adulto._id }
       }).exec();
 
-      // Actualizar al Cuidador: asignar el ID del Adulto Mayor a su perfil
-      const cuidadorActualizado = await this.usuarioModel.findByIdAndUpdate(
-        cuidadorObjectId,
-        { cuidador_vinculado_id: adultoMayor._id },
-        { returnDocument: 'after' }
-      ).exec();
-
-      return cuidadorActualizado;
+      // Actualizamos al adulto
+      adulto.cuidador_vinculado_id = cuidadorObjectId;
+      return await adulto.save();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al vincular cuentas: ${errorMessage}`);
+      throw new GraphQLError(`Fallo al vincular: ${errorMessage}`);
+    }
+  }
+
+  // NUEVO: Resumen Completo para el Cuidador
+  async obtenerAdultosVinculados(cuidador_id: string): Promise<any[]> {
+    try {
+      const cuidador = await this.usuarioModel.findById(new Types.ObjectId(cuidador_id)).exec();
+      if (!cuidador || !cuidador.adultos_vinculados || cuidador.adultos_vinculados.length === 0) return [];
+
+      const adultos = await this.usuarioModel.find({ _id: { $in: cuidador.adultos_vinculados } }).exec();
+      
+      const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
+      const finDia = new Date(); finDia.setHours(23, 59, 59, 999);
+
+      const resumenAdultos = await Promise.all(adultos.map(async (adulto) => {
+        const medicamentos = await this.medicamentoModel.find({ usuario_id: adulto._id, fecha_eliminacion: { $exists: false } }).exec();
+        const citas_hoy = await this.citaModel.find({ usuario_id: adulto._id, fecha_eliminacion: { $exists: false }, fecha_hora: { $gte: inicioDia, $lte: finDia } }).exec();
+        const tomas_hoy = await this.registroTomaModel.find({ medicamento_id: { $in: medicamentos.map(m => m._id) }, estado_toma: Enum_EstadoToma.CONFIRMADA, fecha_confirmacion: { $gte: inicioDia, $lte: finDia } }).exec();
+        
+        return {
+          adulto,
+          medicamentos,
+          citas_hoy,
+          tomas_hoy
+        };
+      }));
+
+      return resumenAdultos;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al consultar vinculados: ${errorMessage}`);
     }
   }
 }
-</file>
 
-<file path="src/app.module.ts">
+================
+File: src/app.module.ts
+================
 // Ruta: src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -1983,9 +2091,124 @@ import { AsistenteModule } from './asistente/asistente.module';
   providers: [AppResolver],
 })
 export class AppModule {}
-</file>
 
-<file path="src/schema.gql">
+================
+File: src/main.ts
+================
+// Ruta: src/main.ts
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  // Habilitar CORS para que el frontend React se conecte sin problemas
+  app.enableCors();
+  
+  // CRÍTICO: Activar validación global basada en DTOs
+  app.useGlobalPipes(new ValidationPipe());
+  
+  await app.listen(3000, '0.0.0.0');
+}
+bootstrap();
+
+================
+File: src/medicamentos/medicamentos.service.ts
+================
+// [BACKEND] Ruta: src/medicamentos/medicamentos.service.ts
+
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { GraphQLError } from 'graphql';
+import { Medicamento } from './entities/medicamento.entity';
+import { CreateMedicamentoInput } from './dto/create-medicamento.input';
+
+@Injectable()
+export class MedicamentosService {
+  constructor(
+    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
+  ) {}
+
+  async create(input: CreateMedicamentoInput): Promise<Medicamento> {
+    try {
+      const usuarioObjectId = new Types.ObjectId(input.usuario_id);
+      
+      // 1. Clonamos el arreglo original para manipularlo
+      let horariosCalculados = input.horarios_especificos;
+
+      // 2. Algoritmo de Cálculo de Horarios
+      if (
+        input.horarios_especificos && 
+        input.horarios_especificos.length > 0 && 
+        input.frecuencia_horas && 
+        input.frecuencia_horas > 0
+      ) {
+        // Extraemos la primera toma (Ej. "08:30")
+        const horaInicialStr = input.horarios_especificos[0];
+        const partesHora = horaInicialStr.split(':');
+        
+        if (partesHora.length === 2) {
+          const horaInicial = parseInt(partesHora[0], 10);
+          const minutos = parseInt(partesHora[1], 10);
+
+          // Límite de tomas al día (Ej. 24 / 8 = 3 tomas)
+          const limiteTomasDia = Math.floor(24 / input.frecuencia_horas);
+          
+          horariosCalculados = []; // Vaciamos para llenarlo con la secuencia completa
+
+          // Generamos la secuencia de horarios
+          for (let i = 0; i < limiteTomasDia; i++) {
+            // Calculamos la hora sumando la frecuencia y usando módulo 24 para saltos de medianoche
+            const horaCalculada = (horaInicial + (i * input.frecuencia_horas)) % 24;
+            
+            // Formateo seguro a string de dos dígitos (HH:mm)
+            const hh = horaCalculada.toString().padStart(2, '0');
+            const mm = minutos.toString().padStart(2, '0');
+            
+            horariosCalculados.push(`${hh}:${mm}`);
+          }
+        }
+      }
+
+      // 3. Instanciar documento con el arreglo calculado y guardar
+      const nuevoMedicamento = new this.medicamentoModel({
+        ...input,
+        usuario_id: usuarioObjectId,
+        horarios_especificos: horariosCalculados, // Reemplazamos con el nuevo arreglo
+      });
+
+      return await nuevoMedicamento.save();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Fallo al guardar el medicamento: ${errorMessage}`, {
+        extensions: { code: 'BAD_USER_INPUT' },
+      });
+    }
+  }
+
+  // MÉTODO DE LECTURA INTACTO
+  async findAllByUserId(usuario_id: string): Promise<Medicamento[]> {
+    try {
+      const usuarioObjectId = new Types.ObjectId(usuario_id);
+      // Busca todos los medicamentos de este usuario que no hayan sido marcados para borrado lógico (TTL)
+      return await this.medicamentoModel.find({ 
+        usuario_id: usuarioObjectId,
+        fecha_eliminacion: { $exists: false } 
+      }).exec();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al consultar medicamentos: ${errorMessage}`, {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+  }
+}
+
+================
+File: src/schema.gql
+================
 # ------------------------------------------------------
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
@@ -1995,6 +2218,11 @@ input AgregarContactoInput {
   parentesco: String!
   telefono: String!
   usuario_id: ID!
+}
+
+type AsistenteResponse {
+  intencion: String!
+  respuesta_texto: String!
 }
 
 type Cita {
@@ -2091,7 +2319,8 @@ type Medicamento {
 
 type Mutation {
   agregarContactoEmergencia(input: AgregarContactoInput!): Usuario!
-  consultarAsistente(pregunta_id: String!, usuario_id: ID!): String!
+  confirmarTomaMedicamento(medicamento_id: ID!): RegistroToma!
+  consultarAsistente(modelo: String, pregunta_id: String!, usuario_id: ID!): AsistenteResponse!
   crearCita(createCitaInput: CreateCitaInput!): Cita!
   crearMedicamento(createMedicamentoInput: CreateMedicamentoInput!): Medicamento!
   crearNotaPersonal(createNotaPersonalInput: CreateNotaPersonalInput!): NotaPersonal!
@@ -2117,6 +2346,7 @@ type Query {
   obtenerCitasPorUsuario(usuario_id: ID!): [Cita!]!
   obtenerMedicamentosPorUsuario(usuario_id: ID!): [Medicamento!]!
   obtenerNotasPersonalesPorUsuario(usuario_id: ID!): [NotaPersonal!]!
+  obtenerTomasHoy(usuario_id: ID!): [RegistroToma!]!
   obtenerUsuario(usuario_id: ID!): Usuario!
   registrosTomaBase: [RegistroToma!]!
 }
@@ -2146,6 +2376,11 @@ input VincularCuidadorInput {
   cuidador_id: ID!
   pin: String!
 }
-</file>
 
-</files>
+
+
+
+
+================================================================
+End of Codebase
+================================================================

@@ -1,148 +1,123 @@
-// Ruta: src/usuarios/usuarios.service.ts
+// [BACKEND] Ruta: src/usuarios/usuarios.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GraphQLError } from 'graphql';
 import * as bcrypt from 'bcrypt';
-import { Usuario } from './entities/usuario.entity';
-import { AgregarContactoInput } from './dto/agregar-contacto.input';
+// CORRECCIÓN 1: Importamos Enum_Rol para usarlo en las consultas
+import { Usuario, Enum_Rol } from './entities/usuario.entity';
 import { CreateUsuarioInput } from './dto/create-usuario.input';
-import { VincularCuidadorInput } from './dto/vincular-cuidador.input';
+import { Medicamento } from '../medicamentos/entities/medicamento.entity';
+import { Cita } from '../citas/entities/cita.entity';
+import { RegistroToma, Enum_EstadoToma } from '../registros-toma/entities/registro-toma.entity';
 
 @Injectable()
 export class UsuariosService {
   constructor(
     @InjectModel(Usuario.name) private usuarioModel: Model<Usuario>,
+    @InjectModel(Medicamento.name) private medicamentoModel: Model<Medicamento>,
+    @InjectModel(Cita.name) private citaModel: Model<Cita>,
+    @InjectModel(RegistroToma.name) private registroTomaModel: Model<RegistroToma>,
   ) {}
 
-  // 1. Obtener perfil completo
-  async findOneById(usuario_id: string): Promise<Usuario> {
-    try {
-      const objectId = new Types.ObjectId(usuario_id);
-      const usuario = await this.usuarioModel.findById(objectId).exec();
-      if (!usuario) throw new Error('Usuario no encontrado');
-      return usuario;
-    } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Error al obtener perfil: ${errorMessage}`, {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
-    }
+  private getRangoDiaLocalUTC(offsetHoras: number = -6): { inicioDia: Date, finDia: Date } {
+    const ahora = new Date();
+    const horaLocal = new Date(ahora.getTime() + offsetHoras * 3600 * 1000);
+
+    const inicioDiaLocal = new Date(horaLocal);
+    inicioDiaLocal.setUTCHours(0, 0, 0, 0);
+    const inicioDiaUTC = new Date(inicioDiaLocal.getTime() - offsetHoras * 3600 * 1000);
+
+    const finDiaLocal = new Date(horaLocal);
+    finDiaLocal.setUTCHours(23, 59, 59, 999);
+    const finDiaUTC = new Date(finDiaLocal.getTime() - offsetHoras * 3600 * 1000);
+
+    return { inicioDia: inicioDiaUTC, finDia: finDiaUTC };
   }
 
-  // 2. Agregar contacto al arreglo usando modificador atómico $push
-  async agregarContacto(input: AgregarContactoInput): Promise<Usuario> {
-    try {
-      const { usuario_id, ...nuevoContacto } = input;
-      const objectId = new Types.ObjectId(usuario_id);
-
-      const usuarioActualizado = await this.usuarioModel.findByIdAndUpdate(
-        objectId,
-        { $push: { contactos_emergencia: nuevoContacto } },
-        { new: true } // Retorna el documento actualizado
-      ).exec();
-
-      if (!usuarioActualizado) throw new Error('Usuario no encontrado');
-      return usuarioActualizado;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al agregar contacto: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-  
   async registrarUsuario(input: CreateUsuarioInput): Promise<Usuario> {
     try {
-      const { password, ...restoDatos } = input;
-      
-      // 1. Generar Hash con bcrypt (Cumplimiento RNF-06)
+      const existe = await this.usuarioModel.findOne({ correo: input.correo }).exec();
+      if (existe) {
+        throw new Error('El correo ya está registrado.');
+      }
+
       const salt = await bcrypt.genSalt(10);
-      const password_hash = await bcrypt.hash(password, salt);
-
-      // 2. Instanciar documento con los campos iniciales requeridos
+      const hash = await bcrypt.hash(input.password, salt);
+      
       const nuevoUsuario = new this.usuarioModel({
-        ...restoDatos,
-        password_hash,
-        estado_activo: true,
-        tokens_dispositivo: [],
-        contactos_emergencia: [],
+        ...input,
+        password_hash: hash,
       });
-
-      // 3. Guardar en MongoDB Atlas
-      return await nuevoUsuario.save();
+      
+      const usuarioGuardado = await nuevoUsuario.save();
+      return usuarioGuardado as unknown as Usuario;
     } catch (error) {
-      // Manejo de restricción de unicidad de correo (Error 11000 en MongoDB)
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 11000
-      ) {
-        throw new GraphQLError('El correo electrónico ya está registrado.', {
-          extensions: { code: 'CONFLICT' },
-        });
-      }
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al registrar usuario: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      throw new GraphQLError(`Error al registrar: ${errorMessage}`, {
+        extensions: { code: 'BAD_USER_INPUT' }
       });
     }
   }
 
-  async generarPinVinculacion(usuario_id: string): Promise<string> {
+  async vincularAdultoMayor(cuidador_id: string, correo_adulto: string): Promise<Usuario> {
     try {
-      const objectId = new Types.ObjectId(usuario_id);
-      // Generar un PIN aleatorio de 6 dígitos
-      const pin = Math.floor(100000 + Math.random() * 900000).toString(); 
+      if (!Types.ObjectId.isValid(cuidador_id)) throw new Error('ID de cuidador inválido.');
+      const cuidadorObjectId = new Types.ObjectId(cuidador_id);
       
-      const usuario = await this.usuarioModel.findByIdAndUpdate(
-        objectId,
-        { pin_vinculacion: pin },
-        { returnDocument: 'after' }
-      ).exec();
-
-      if (!usuario) throw new Error(`El ID ${usuario_id} no existe.`);
-      return usuario.pin_vinculacion;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al generar PIN: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
-    }
-  }
-
-  // 2. Vincular Cuenta (Para el Cuidador)
-  async vincularCuidador(input: VincularCuidadorInput): Promise<Usuario> {
-    try {
-      const cuidadorObjectId = new Types.ObjectId(input.cuidador_id);
-
-      // Buscar al Adulto Mayor que posea el PIN ingresado
-      const adultoMayor = await this.usuarioModel.findOne({ pin_vinculacion: input.pin }).exec();
+      // CORRECCIÓN 2: Usamos el Enum_Rol explícito en lugar del string quemado
+      const adulto = await this.usuarioModel.findOne({ 
+        correo: correo_adulto, 
+        rol: Enum_Rol.ADULTO_MAYOR 
+      }).exec();
       
-      if (!adultoMayor) {
-        throw new GraphQLError('El PIN ingresado es inválido o ya expiró.', { 
-          extensions: { code: 'BAD_USER_INPUT' } 
-        });
-      }
+      if (!adulto) throw new Error('No se encontró un Adulto Mayor con ese correo.');
 
-      // Actualizar al Adulto Mayor: asignar su cuidador y eliminar el PIN usado ($unset)
-      await this.usuarioModel.findByIdAndUpdate(adultoMayor._id, {
-        cuidador_vinculado_id: cuidadorObjectId,
-        $unset: { pin_vinculacion: "" } 
+      await this.usuarioModel.findByIdAndUpdate(cuidadorObjectId, {
+        // CORRECCIÓN 3: Forzamos (adulto as any) para que TypeScript no se queje del _id
+        $addToSet: { adultos_vinculados: (adulto as any)._id }
       }).exec();
 
-      // Actualizar al Cuidador: asignar el ID del Adulto Mayor a su perfil
-      const cuidadorActualizado = await this.usuarioModel.findByIdAndUpdate(
-        cuidadorObjectId,
-        { cuidador_vinculado_id: adultoMayor._id },
-        { returnDocument: 'after' }
-      ).exec();
-
-      return cuidadorActualizado;
+      // CORRECCIÓN 4: Forzamos (adulto as any) para asignar la propiedad sin errores de tipos
+      (adulto as any).cuidador_vinculado_id = cuidadorObjectId;
+      const adultoGuardado = await adulto.save();
+      
+      return adultoGuardado as unknown as Usuario;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo al vincular cuentas: ${errorMessage}`);
+      throw new GraphQLError(`Fallo al vincular: ${errorMessage}`);
+    }
+  }
+
+  async obtenerAdultosVinculados(cuidador_id: string): Promise<any[]> {
+    try {
+      if (!Types.ObjectId.isValid(cuidador_id)) throw new Error('ID de cuidador inválido.');
+      
+      const cuidador = await this.usuarioModel.findById(new Types.ObjectId(cuidador_id)).exec();
+      if (!cuidador || !cuidador.adultos_vinculados || cuidador.adultos_vinculados.length === 0) return [];
+
+      const adultos = await this.usuarioModel.find({ _id: { $in: cuidador.adultos_vinculados } }).exec();
+      
+      const { inicioDia, finDia } = this.getRangoDiaLocalUTC(-6);
+
+      const resumenAdultos = await Promise.all(adultos.map(async (adulto) => {
+        const medicamentos = await this.medicamentoModel.find({ usuario_id: adulto._id, fecha_eliminacion: { $exists: false } }).exec();
+        const citas_hoy = await this.citaModel.find({ usuario_id: adulto._id, fecha_eliminacion: { $exists: false }, fecha_hora: { $gte: inicioDia, $lte: finDia } }).exec();
+        const tomas_hoy = await this.registroTomaModel.find({ medicamento_id: { $in: medicamentos.map(m => m._id) }, estado_toma: Enum_EstadoToma.CONFIRMADA, fecha_confirmacion: { $gte: inicioDia, $lte: finDia } }).exec();
+        
+        return {
+          adulto,
+          medicamentos,
+          citas_hoy,
+          tomas_hoy
+        };
+      }));
+
+      return resumenAdultos;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new GraphQLError(`Error al consultar vinculados: ${errorMessage}`);
     }
   }
 }

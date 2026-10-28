@@ -11,6 +11,11 @@ import { LogInteraccion } from '../logs-interaccion/entities/log-interaccion.ent
 import { Cita } from '../citas/entities/cita.entity';
 import { RegistroToma, Enum_EstadoToma } from '../registros-toma/entities/registro-toma.entity';
 
+interface IAsistenteResponse {
+  respuesta_texto: string;
+  intencion: string;
+}
+
 @Injectable()
 export class AsistenteService {
   constructor(
@@ -21,18 +26,68 @@ export class AsistenteService {
     @InjectModel(RegistroToma.name) private registroTomaModel: Model<RegistroToma>,
   ) {}
 
-  async procesarPregunta(usuario_id: string, pregunta_id: string, modelo: string = 'Luma Cloud'): Promise<string> {
+  private getRangoDiaLocalUTC(offsetHoras: number = -6): { inicioDia: Date, finDia: Date } {
+    const ahora = new Date();
+    const horaLocal = new Date(ahora.getTime() + offsetHoras * 3600 * 1000);
+
+    const inicioDiaLocal = new Date(horaLocal);
+    inicioDiaLocal.setUTCHours(0, 0, 0, 0);
+    const inicioDiaUTC = new Date(inicioDiaLocal.getTime() - offsetHoras * 3600 * 1000);
+
+    const finDiaLocal = new Date(horaLocal);
+    finDiaLocal.setUTCHours(23, 59, 59, 999);
+    const finDiaUTC = new Date(finDiaLocal.getTime() - offsetHoras * 3600 * 1000);
+
+    return { inicioDia: inicioDiaUTC, finDia: finDiaUTC };
+  }
+
+  private clasificarIntencionRapida(pregunta: string): string {
+    const p = pregunta.toLowerCase();
+    if (p.includes('agregar') || p.includes('nuevo') || p.includes('crear') || p.includes('registrar')) {
+      if (p.includes('medicina') || p.includes('pastilla') || p.includes('tratamiento')) return 'ACCION_NUEVO_MEDICAMENTO';
+      if (p.includes('cita') || p.includes('doctor') || p.includes('consulta')) return 'ACCION_NUEVA_CITA';
+      if (p.includes('contacto') || p.includes('familiar') || p.includes('apoyo')) return 'ACCION_NUEVO_CONTACTO';
+    }
+    return 'CONSULTA_GENERAL';
+  }
+
+  private parsearRespuestaJSON(respuestaRaw: string, intencionRespaldo: string): IAsistenteResponse {
     try {
+      const cleanJson = respuestaRaw.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      return {
+        respuesta_texto: parsed.respuesta_texto ? parsed.respuesta_texto.replace(/"/g, '') : "Lo siento, no pude procesar eso.",
+        intencion: parsed.intencion || intencionRespaldo
+      };
+    } catch (error) {
+      return {
+        respuesta_texto: respuestaRaw.replace(/"/g, ''),
+        intencion: intencionRespaldo
+      };
+    }
+  }
+
+  // NUEVO MÉTODO: Envía el audio a FastAPI
+  async transcribirAudio(base64Audio: string): Promise<string> {
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.post('http://localhost:8000/transcribir', { audio_base64: base64Audio })
+      );
+      return data.texto;
+    } catch (error) {
+      throw new GraphQLError('Error al comunicar con el motor de transcripción IA.');
+    }
+  }
+
+  async procesarPregunta(usuario_id: string, pregunta_id: string, modelo: string = 'Luma Cloud'): Promise<IAsistenteResponse> {
+    try {
+      if (!Types.ObjectId.isValid(usuario_id)) throw new Error('ID de usuario inválido.');
       const objectId = new Types.ObjectId(usuario_id);
 
-      // --- 1. EXTRACCIÓN DE CONTEXTO (BASE DE DATOS) ---
       const medicamentos = await this.medicamentoModel.find({ usuario_id: objectId, fecha_eliminacion: { $exists: false } }).exec();
-      
-      const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
-      const finDia = new Date(); finDia.setHours(23, 59, 59, 999);
+      const { inicioDia, finDia } = this.getRangoDiaLocalUTC(-6);
 
       const citasHoyDocs = await this.citaModel.find({ usuario_id: objectId, fecha_eliminacion: { $exists: false }, fecha_hora: { $gte: inicioDia, $lte: finDia } }).exec();
-      
       const tomasHoyDocs = await this.registroTomaModel.find({
         medicamento_id: { $in: medicamentos.map(m => m._id) },
         estado_toma: Enum_EstadoToma.CONFIRMADA,
@@ -40,69 +95,72 @@ export class AsistenteService {
       }).exec();
 
       const idsTomadosHoy = tomasHoyDocs.map(t => t.medicamento_id.toString());
-      
       const medicamentos_activos = medicamentos.map(med => ({ id: med._id.toString(), nombre_farmaco: med.nombre_farmaco, horarios_especificos: med.horarios_especificos }));
-      const citas_hoy = citasHoyDocs.map(cita => ({ titulo_evento: cita.titulo_evento, fecha_hora: cita.fecha_hora.toISOString(), ubicacion: cita.ubicacion || 'Sin ubicación' }));
-
-      let respuestaGenerada = "";
-
-      // --- 2. ENRUTADOR DE MODELOS IA (ROUTING) ---
       
-      if (modelo === 'Llama 3.2 Local') {
-        // RUTA A: MODELO LOCAL (OLLAMA)
-        // Construimos un Prompt explícito inyectando el contexto del usuario
-        
-        const medsPendientes = medicamentos_activos.filter(m => !idsTomadosHoy.includes(m.id));
-        const medsTomados = medicamentos_activos.filter(m => idsTomadosHoy.includes(m.id));
-        
-        const promptContexto = `
-          Eres Luma, un asistente médico empático para un adulto mayor. NO debes dar diagnósticos médicos.
-          Contexto del paciente para hoy:
-          - Citas médicas hoy: ${citas_hoy.map(c => c.titulo_evento).join(', ') || 'Ninguna'}.
-          - Medicamentos que YA TOMÓ hoy: ${medsTomados.map(m => m.nombre_farmaco).join(', ') || 'Ninguno'}.
-          - Medicamentos PENDIENTES por tomar: ${medsPendientes.map(m => m.nombre_farmaco).join(', ') || 'Ninguno'}.
-          
-          El usuario te pregunta o solicita lo siguiente: "${pregunta_id}"
-          
-          Responde de manera natural, breve, cálida y en español de México. Si pregunta por su próxima toma, menciona solo los pendientes. Si pide un resumen, incluye citas, tomados y pendientes.
-        `;
+      const citas_hoy = citasHoyDocs.map(cita => ({ titulo_evento: cita.titulo_evento, fecha_hora: cita.fecha_hora.toISOString(), ubicacion: cita.ubicacion || 'Sin ubicación' }));
+      const medsPendientes = medicamentos_activos.filter(m => !idsTomadosHoy.includes(m.id));
+      const medsTomados = medicamentos_activos.filter(m => idsTomadosHoy.includes(m.id));
 
+      const systemPrompt = `
+        Eres Luma, el asistente personal del usuario. 
+        REGLAS ESTRICTAS:
+        1. Háblale SIEMPRE de "tú" de forma muy cálida y humana.
+        2. Los nombres en la lista de "Medicamentos" son NOMBRES COMERCIALES DE MEDICINAS. NUNCA los interpretes como estudios de laboratorio, procedimientos ni pruebas médicas, sin importar lo raros que suenen.
+        3. Sé extremadamente breve y nunca uses comillas para envolver tu respuesta.
+        4. Responde ÚNICAMENTE entregando un objeto JSON válido con este formato exacto: {"respuesta_texto": "Tu respuesta", "intencion": "TIPO_DE_INTENCION"}
+        5. Intenciones válidas: CONSULTA_GENERAL, ACCION_NUEVO_MEDICAMENTO, ACCION_NUEVA_CITA.
+
+        CONTEXTO HOY:
+        - Citas: ${citas_hoy.map(c => c.titulo_evento).join(', ') || 'Ninguna'}.
+        - Medicamentos YA TOMADOS: ${medsTomados.map(m => m.nombre_farmaco).join(', ') || 'Ninguno'}.
+        - Medicamentos PENDIENTES por tomar: ${medsPendientes.map(m => m.nombre_farmaco).join(', ') || 'Ninguno'}.
+
+        EL USUARIO DICE: "${pregunta_id}"
+      `;
+
+      const intencionRapida = this.clasificarIntencionRapida(pregunta_id);
+      let resultadoFinal: IAsistenteResponse;
+
+      if (modelo === 'Llama 3.2 Local') {
         const ollamaPayload = {
           model: "llama3.2",
-          prompt: promptContexto,
-          stream: false // Importante para recibir un solo bloque de JSON
+          prompt: systemPrompt,
+          format: "json", 
+          stream: false
         };
 
         const { data } = await firstValueFrom(
           this.httpService.post('http://127.0.0.1:11434/api/generate', ollamaPayload)
         );
-        respuestaGenerada = data.response;
-
+        resultadoFinal = this.parsearRespuestaJSON(data.response, intencionRapida);
       } else {
-        // RUTA B: MODELO CLOUD (FASTAPI / OpenAI / Gemini actual)
         const { data } = await firstValueFrom(
-          this.httpService.post('http://127.0.0.1:8000/evaluar', {
+          this.httpService.post('http://localhost:8000/evaluar', {
             pregunta_id,
             medicamentos_activos,
             citas: citas_hoy,
-            tomas_hoy_ids: idsTomadosHoy 
+            tomas_hoy_ids: idsTomadosHoy,
+            prompt_forzado: systemPrompt 
           })
         );
-        respuestaGenerada = data.respuesta;
+        
+        if (data.respuesta_texto && data.intencion) {
+          resultadoFinal = { respuesta_texto: data.respuesta_texto, intencion: data.intencion };
+        } else {
+          resultadoFinal = { respuesta_texto: "Lo siento, hubo un problema de comunicación con el servidor.", intencion: 'CONSULTA_GENERAL' };
+        }
       }
 
-      // --- 3. AUDITORÍA Y RETORNO ---
       const nuevoLog = new this.logInteraccionModel({
         usuario_id: objectId,
         premisa_entrada: pregunta_id,
-        respuesta_generada: respuestaGenerada,
+        respuesta_generada: resultadoFinal.respuesta_texto,
         bloqueo_medico: false,
         fecha_interaccion: new Date(),
       });
       await nuevoLog.save();
 
-      return respuestaGenerada;
-
+      return resultadoFinal;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       throw new GraphQLError(`Fallo en el motor de inferencia: ${errorMessage}`, {

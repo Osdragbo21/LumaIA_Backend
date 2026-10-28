@@ -2,11 +2,9 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-input AgregarContactoInput {
-  nombre_contacto: String!
-  parentesco: String!
-  telefono: String!
-  usuario_id: ID!
+type AsistenteResponse {
+  intencion: String!
+  respuesta_texto: String!
 }
 
 type Cita {
@@ -102,16 +100,15 @@ type Medicamento {
 }
 
 type Mutation {
-  agregarContactoEmergencia(input: AgregarContactoInput!): Usuario!
   confirmarTomaMedicamento(medicamento_id: ID!): RegistroToma!
-  consultarAsistente(modelo: String, pregunta_id: String!, usuario_id: ID!): String!
+  consultarAsistente(modelo: String, pregunta_id: String!, usuario_id: ID!): AsistenteResponse!
   crearCita(createCitaInput: CreateCitaInput!): Cita!
   crearMedicamento(createMedicamentoInput: CreateMedicamentoInput!): Medicamento!
   crearNotaPersonal(createNotaPersonalInput: CreateNotaPersonalInput!): NotaPersonal!
-  generarPinVinculacion(usuario_id: ID!): String!
   login(correo: String!, password: String!): LoginResponse!
   registrarUsuario(input: CreateUsuarioInput!): Usuario!
-  vincularCuidador(input: VincularCuidadorInput!): Usuario!
+  transcribirAudio(base64Audio: String!): String!
+  vincularAdultoMayor(correo_adulto: String!, cuidador_id: ID!): Usuario!
 }
 
 type NotaPersonal {
@@ -127,11 +124,11 @@ type Query {
 
   """Estado general del API LumaIA"""
   lumaStatus: String!
+  obtenerAdultosVinculados(cuidador_id: ID!): [ResumenAdultoVinculado!]!
   obtenerCitasPorUsuario(usuario_id: ID!): [Cita!]!
   obtenerMedicamentosPorUsuario(usuario_id: ID!): [Medicamento!]!
   obtenerNotasPersonalesPorUsuario(usuario_id: ID!): [NotaPersonal!]!
   obtenerTomasHoy(usuario_id: ID!): [RegistroToma!]!
-  obtenerUsuario(usuario_id: ID!): Usuario!
   registrosTomaBase: [RegistroToma!]!
 }
 
@@ -143,8 +140,16 @@ type RegistroToma {
   medicamento_id: ID!
 }
 
+type ResumenAdultoVinculado {
+  adulto: Usuario!
+  citas_hoy: [Cita!]!
+  medicamentos: [Medicamento!]!
+  tomas_hoy: [RegistroToma!]!
+}
+
 type Usuario {
   _id: ID!
+  adultos_vinculados: [ID!]!
   contactos_emergencia: [ContactoEmergencia!]!
   correo: String!
   cuidador_vinculado_id: ID
@@ -154,9 +159,4 @@ type Usuario {
   pin_vinculacion: String
   rol: Enum_Rol!
   tokens_dispositivo: [String!]!
-}
-
-input VincularCuidadorInput {
-  cuidador_id: ID!
-  pin: String!
 }

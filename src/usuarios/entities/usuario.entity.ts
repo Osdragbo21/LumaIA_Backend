@@ -1,4 +1,5 @@
-// Ruta: src/usuarios/entities/usuario.entity.ts
+// [BACKEND] Ruta: src/usuarios/entities/usuario.entity.ts
+
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
@@ -30,7 +31,7 @@ export class Usuario extends Document {
   nombre: string;
 
   @Field()
-  @Prop({ required: true, unique: true }) // Restricción de unicidad
+  @Prop({ required: true, unique: true })
   correo: string;
 
   @Field()
@@ -45,12 +46,17 @@ export class Usuario extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Usuario' })
   cuidador_vinculado_id?: Types.ObjectId;
 
+  // NUEVO: Array para el Cuidador
+  @Field(() => [ID])
+  @Prop({ type: [Types.ObjectId], ref: 'Usuario', default: [] })
+  adultos_vinculados: Types.ObjectId[];
+
   @Field({ nullable: true })
   @Prop()
   pin_vinculacion?: string;
 
   @Field()
-  @Prop({ default: true }) // Borrado Lógico
+  @Prop({ default: true })
   estado_activo: boolean;
 
   @Field(() => [String])
