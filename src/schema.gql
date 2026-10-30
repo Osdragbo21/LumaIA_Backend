@@ -2,11 +2,25 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type AdherenciaManhattan {
+  fecha: String!
+  retraso_minutos: Float!
+}
+
 input AgregarContactoInput {
   nombre_contacto: String!
   parentesco: String!
   telefono: String!
   usuario_id: ID!
+}
+
+type AnaliticaDashboard {
+  adherencia: [AdherenciaManhattan!]!
+  escalamiento_ucs: [ContactoUCS!]!
+  intenciones: [IntencionEuclidiana!]!
+  optimizacion_hill_climbing: [IteracionHillClimbing!]!
+  ruta_bfs_optima: [String!]!
+  seguridad_dfs: SeguridadDFS!
 }
 
 type AsistenteResponse {
@@ -28,6 +42,12 @@ type ContactoEmergencia {
   nombre_contacto: String!
   parentesco: String!
   telefono: String!
+}
+
+type ContactoUCS {
+  costo_acumulado: Int!
+  costo_minutos: Int!
+  nombre: String!
 }
 
 input CreateCitaInput {
@@ -81,10 +101,24 @@ enum Enum_Rol {
   CUIDADOR
 }
 
+type IntencionEuclidiana {
+  cantidad: Int!
+  distancia_promedio: Float!
+  intencion: String!
+}
+
+type IteracionHillClimbing {
+  ajuste: String!
+  iteracion: Int!
+  retraso_actual: Int!
+}
+
 type LogInteraccion {
   _id: ID!
   bloqueo_medico: Boolean!
+  distancia: Float!
   fecha_interaccion: DateTime!
+  intencion: String!
   premisa_entrada: String!
   respuesta_generada: String!
   usuario_id: ID!
@@ -119,13 +153,14 @@ type Mutation {
   eliminarCita(id: ID!): Cita!
   eliminarMedicamento(id: ID!): Medicamento!
   eliminarNotaPersonal(id: ID!): NotaPersonal!
+  generarPinVinculacion(usuario_id: ID!): String!
   login(correo: String!, password: String!): LoginResponse!
   registrarUsuario(input: CreateUsuarioInput!): Usuario!
   restaurarCita(id: ID!): Cita!
   restaurarMedicamento(id: ID!): Medicamento!
   restaurarNotaPersonal(id: ID!): NotaPersonal!
   transcribirAudio(base64Audio: String!): String!
-  vincularAdultoMayor(correo_adulto: String!, cuidador_id: ID!): Usuario!
+  vincularAdultoMayor(cuidador_id: ID!, pin: String!): Usuario!
 }
 
 type NotaPersonal {
@@ -146,6 +181,7 @@ type Query {
   obtenerCitasPorUsuario(usuario_id: ID!): [Cita!]!
   obtenerMedicamentosPapelera(usuario_id: ID!): [Medicamento!]!
   obtenerMedicamentosPorUsuario(usuario_id: ID!): [Medicamento!]!
+  obtenerMiAnaliticaCuidador(dias: Int! = 7): AnaliticaDashboard!
   obtenerNotasPapelera(usuario_id: ID!): [NotaPersonal!]!
   obtenerNotasPersonalesPorUsuario(usuario_id: ID!): [NotaPersonal!]!
   obtenerTomasHoy(usuario_id: ID!): [RegistroToma!]!
@@ -166,6 +202,11 @@ type ResumenAdultoVinculado {
   citas_hoy: [Cita!]!
   medicamentos: [Medicamento!]!
   tomas_hoy: [RegistroToma!]!
+}
+
+type SeguridadDFS {
+  bloqueadas: Int!
+  permitidas: Int!
 }
 
 input UpdateCitaInput {
