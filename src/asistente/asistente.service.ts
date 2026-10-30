@@ -29,15 +29,12 @@ export class AsistenteService {
   private getRangoDiaLocalUTC(offsetHoras: number = -6): { inicioDia: Date, finDia: Date } {
     const ahora = new Date();
     const horaLocal = new Date(ahora.getTime() + offsetHoras * 3600 * 1000);
-
     const inicioDiaLocal = new Date(horaLocal);
     inicioDiaLocal.setUTCHours(0, 0, 0, 0);
     const inicioDiaUTC = new Date(inicioDiaLocal.getTime() - offsetHoras * 3600 * 1000);
-
     const finDiaLocal = new Date(horaLocal);
     finDiaLocal.setUTCHours(23, 59, 59, 999);
     const finDiaUTC = new Date(finDiaLocal.getTime() - offsetHoras * 3600 * 1000);
-
     return { inicioDia: inicioDiaUTC, finDia: finDiaUTC };
   }
 
@@ -60,19 +57,13 @@ export class AsistenteService {
         intencion: parsed.intencion || intencionRespaldo
       };
     } catch (error) {
-      return {
-        respuesta_texto: respuestaRaw.replace(/"/g, ''),
-        intencion: intencionRespaldo
-      };
+      return { respuesta_texto: respuestaRaw.replace(/"/g, ''), intencion: intencionRespaldo };
     }
   }
 
-  // NUEVO MÉTODO: Envía el audio a FastAPI
   async transcribirAudio(base64Audio: string): Promise<string> {
     try {
-      const { data } = await firstValueFrom(
-        this.httpService.post('http://localhost:8000/transcribir', { audio_base64: base64Audio })
-      );
+      const { data } = await firstValueFrom(this.httpService.post('http://localhost:8000/transcribir', { audio_base64: base64Audio }));
       return data.texto;
     } catch (error) {
       throw new GraphQLError('Error al comunicar con el motor de transcripción IA.');
@@ -96,7 +87,6 @@ export class AsistenteService {
 
       const idsTomadosHoy = tomasHoyDocs.map(t => t.medicamento_id.toString());
       const medicamentos_activos = medicamentos.map(med => ({ id: med._id.toString(), nombre_farmaco: med.nombre_farmaco, horarios_especificos: med.horarios_especificos }));
-      
       const citas_hoy = citasHoyDocs.map(cita => ({ titulo_evento: cita.titulo_evento, fecha_hora: cita.fecha_hora.toISOString(), ubicacion: cita.ubicacion || 'Sin ubicación' }));
       const medsPendientes = medicamentos_activos.filter(m => !idsTomadosHoy.includes(m.id));
       const medsTomados = medicamentos_activos.filter(m => idsTomadosHoy.includes(m.id));
@@ -122,50 +112,39 @@ export class AsistenteService {
       let resultadoFinal: IAsistenteResponse;
 
       if (modelo === 'Llama 3.2 Local') {
-        const ollamaPayload = {
-          model: "llama3.2",
-          prompt: systemPrompt,
-          format: "json", 
-          stream: false
-        };
-
-        const { data } = await firstValueFrom(
-          this.httpService.post('http://127.0.0.1:11434/api/generate', ollamaPayload)
-        );
+        const ollamaPayload = { model: "llama3.2", prompt: systemPrompt, format: "json", stream: false };
+        const { data } = await firstValueFrom(this.httpService.post('http://127.0.0.1:11434/api/generate', ollamaPayload));
         resultadoFinal = this.parsearRespuestaJSON(data.response, intencionRapida);
       } else {
-        const { data } = await firstValueFrom(
-          this.httpService.post('http://localhost:8000/evaluar', {
-            pregunta_id,
-            medicamentos_activos,
-            citas: citas_hoy,
-            tomas_hoy_ids: idsTomadosHoy,
-            prompt_forzado: systemPrompt 
-          })
-        );
-        
+        const { data } = await firstValueFrom(this.httpService.post('http://localhost:8000/evaluar', {
+            pregunta_id, medicamentos_activos, citas: citas_hoy, tomas_hoy_ids: idsTomadosHoy, prompt_forzado: systemPrompt 
+        }));
         if (data.respuesta_texto && data.intencion) {
           resultadoFinal = { respuesta_texto: data.respuesta_texto, intencion: data.intencion };
         } else {
-          resultadoFinal = { respuesta_texto: "Lo siento, hubo un problema de comunicación con el servidor.", intencion: 'CONSULTA_GENERAL' };
+          resultadoFinal = { respuesta_texto: "Lo siento, hubo un problema de comunicación.", intencion: 'CONSULTA_GENERAL' };
         }
       }
+
+      // ACTUALIZACIÓN: Guardamos la intención y una distancia Euclidiana simulada (0.0 a 1.0)
+      const bloqueo = pregunta_id.includes('SINTOMA') || pregunta_id.includes('DOLOR');
+      const distanciaSimulada = Math.random(); // En el futuro vendrá del script de Python
 
       const nuevoLog = new this.logInteraccionModel({
         usuario_id: objectId,
         premisa_entrada: pregunta_id,
         respuesta_generada: resultadoFinal.respuesta_texto,
-        bloqueo_medico: false,
+        intencion: resultadoFinal.intencion,
+        distancia: distanciaSimulada,
+        bloqueo_medico: bloqueo,
         fecha_interaccion: new Date(),
       });
       await nuevoLog.save();
 
       return resultadoFinal;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      throw new GraphQLError(`Fallo en el motor de inferencia: ${errorMessage}`, {
-        extensions: { code: 'INTERNAL_SERVER_ERROR' },
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new GraphQLError(`Fallo en el motor de inferencia: ${errorMessage}`);
     }
   }
 }

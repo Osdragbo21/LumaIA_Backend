@@ -1,6 +1,8 @@
 // [BACKEND] Ruta: src/usuarios/usuarios.resolver.ts
 
 import { Resolver, Query, Mutation, Args, ID, ObjectType, Field } from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
+import { GqlAuthGuard } from '../auth/gql-auth.guard'; // NUEVO: Importamos el guardián
 import { Usuario } from './entities/usuario.entity';
 import { CreateUsuarioInput } from './dto/create-usuario.input';
 import { AgregarContactoInput } from './dto/agregar-contacto.input';
@@ -21,41 +23,43 @@ export class ResumenAdultoVinculado {
 export class UsuariosResolver {
   constructor(private readonly usuariosService: UsuariosService) {}
 
-  // --- RESTAURADO: Obtener el perfil del usuario ---
-  @Query(() => Usuario, { name: 'obtenerUsuario' })
-  async obtenerUsuario(
-    @Args('usuario_id', { type: () => ID }) usuario_id: string,
-  ): Promise<Usuario> {
-    return this.usuariosService.obtenerUsuario(usuario_id);
-  }
-
-  // --- RESTAURADO: Agregar contacto de emergencia ---
-  @Mutation(() => Usuario, { name: 'agregarContactoEmergencia' })
-  async agregarContactoEmergencia(
-    @Args('input') input: AgregarContactoInput,
-  ): Promise<Usuario> {
-    return this.usuariosService.agregarContactoEmergencia(input);
-  }
-
+  // El registro NO lleva Guard porque el usuario aún no tiene token
   @Mutation(() => Usuario, { name: 'registrarUsuario' })
-  async registrarUsuario(
-    @Args('input') input: CreateUsuarioInput,
-  ): Promise<Usuario> {
+  async registrarUsuario(@Args('input') input: CreateUsuarioInput): Promise<Usuario> {
     return this.usuariosService.registrarUsuario(input);
   }
 
+  @Query(() => Usuario, { name: 'obtenerUsuario' })
+  @UseGuards(GqlAuthGuard) // Protegido
+  async obtenerUsuario(@Args('usuario_id', { type: () => ID }) usuario_id: string): Promise<Usuario> {
+    return this.usuariosService.obtenerUsuario(usuario_id);
+  }
+
+  @Mutation(() => Usuario, { name: 'agregarContactoEmergencia' })
+  @UseGuards(GqlAuthGuard) // Protegido
+  async agregarContactoEmergencia(@Args('input') input: AgregarContactoInput): Promise<Usuario> {
+    return this.usuariosService.agregarContactoEmergencia(input);
+  }
+
+  // NUEVA MUTACIÓN: Generar PIN
+  @Mutation(() => String, { name: 'generarPinVinculacion' })
+  @UseGuards(GqlAuthGuard) // Protegido
+  async generarPinVinculacion(@Args('usuario_id', { type: () => ID }) usuario_id: string): Promise<string> {
+    return this.usuariosService.generarPinVinculacion(usuario_id);
+  }
+
   @Mutation(() => Usuario, { name: 'vincularAdultoMayor' })
+  @UseGuards(GqlAuthGuard) // Protegido
   async vincularAdultoMayor(
     @Args('cuidador_id', { type: () => ID }) cuidador_id: string,
-    @Args('correo_adulto') correo_adulto: string,
+    @Args('pin') pin: string, // Cambiado de correo a PIN
   ): Promise<Usuario> {
-    return this.usuariosService.vincularAdultoMayor(cuidador_id, correo_adulto);
+    return this.usuariosService.vincularAdultoMayor(cuidador_id, pin);
   }
 
   @Query(() => [ResumenAdultoVinculado], { name: 'obtenerAdultosVinculados' })
-  async obtenerAdultosVinculados(
-    @Args('cuidador_id', { type: () => ID }) cuidador_id: string,
-  ): Promise<ResumenAdultoVinculado[]> {
+  @UseGuards(GqlAuthGuard) // Protegido
+  async obtenerAdultosVinculados(@Args('cuidador_id', { type: () => ID }) cuidador_id: string): Promise<ResumenAdultoVinculado[]> {
     return this.usuariosService.obtenerAdultosVinculados(cuidador_id);
   }
 }

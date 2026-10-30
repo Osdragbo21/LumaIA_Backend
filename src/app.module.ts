@@ -1,4 +1,5 @@
-// Ruta: src/app.module.ts
+// [BACKEND] Ruta: src/app.module.ts
+
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -15,6 +16,7 @@ import { RegistrosTomaModule } from './registros-toma/registros-toma.module';
 import { LogsInteraccionModule } from './logs-interaccion/logs-interaccion.module';
 import { AuthModule } from './auth/auth.module';
 import { AsistenteModule } from './asistente/asistente.module';
+import { AnaliticaModule } from './analitica/analitica.module'; // NUEVO
 
 @Module({
   imports: [
@@ -44,6 +46,7 @@ import { AsistenteModule } from './asistente/asistente.module';
     LogsInteraccionModule,
     AuthModule,
     AsistenteModule,
+    AnaliticaModule, // NUEVO
   ],
   providers: [AppResolver],
 })

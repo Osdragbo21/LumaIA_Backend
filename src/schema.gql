@@ -196,8 +196,8 @@ type Usuario {
   correo: String!
   cuidador_vinculado_id: ID
   estado_activo: Boolean!
+  expiracion_pin: DateTime
   nombre: String!
-  password_hash: String!
   pin_vinculacion: String
   rol: Enum_Rol!
   tokens_dispositivo: [String!]!

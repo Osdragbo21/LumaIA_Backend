@@ -34,7 +34,7 @@ export class Usuario extends Document {
   @Prop({ required: true, unique: true })
   correo: string;
 
-  @Field()
+  // CORRECCIÓN S-02: Se eliminó @Field() para que no se exponga en la API
   @Prop({ required: true })
   password_hash: string;
 
@@ -46,7 +46,6 @@ export class Usuario extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Usuario' })
   cuidador_vinculado_id?: Types.ObjectId;
 
-  // NUEVO: Array para el Cuidador
   @Field(() => [ID])
   @Prop({ type: [Types.ObjectId], ref: 'Usuario', default: [] })
   adultos_vinculados: Types.ObjectId[];
@@ -54,6 +53,11 @@ export class Usuario extends Document {
   @Field({ nullable: true })
   @Prop()
   pin_vinculacion?: string;
+
+  // Preparación para RF-04 (Expiración del PIN)
+  @Field(() => Date, { nullable: true })
+  @Prop({ type: Date })
+  expiracion_pin?: Date;
 
   @Field()
   @Prop({ default: true })
