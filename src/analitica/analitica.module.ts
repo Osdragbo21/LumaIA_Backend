@@ -2,6 +2,7 @@
 
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { HttpModule } from '@nestjs/axios'; // NUEVO: Importamos HttpModule
 import { AnaliticaService } from './analitica.service';
 import { AnaliticaResolver } from './analitica.resolver';
 import { Usuario, UsuarioSchema } from '../usuarios/entities/usuario.entity';
@@ -10,6 +11,7 @@ import { LogInteraccion, LogInteraccionSchema } from '../logs-interaccion/entiti
 
 @Module({
   imports: [
+    HttpModule, // NUEVO: Registramos el módulo HTTP
     MongooseModule.forFeature([
       { name: Usuario.name, schema: UsuarioSchema },
       { name: RegistroToma.name, schema: RegistroTomaSchema },

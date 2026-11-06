@@ -21,7 +21,6 @@ export class SeguridadDFS {
   @Field(() => Int) bloqueadas: number;
 }
 
-// NUEVO: Entidad para UCS (Costo Uniforme)
 @ObjectType()
 export class ContactoUCS {
   @Field() nombre: string;
@@ -29,12 +28,21 @@ export class ContactoUCS {
   @Field(() => Int) costo_acumulado: number;
 }
 
-// NUEVO: Entidad para Hill Climbing
 @ObjectType()
 export class IteracionHillClimbing {
   @Field(() => Int) iteracion: number;
   @Field(() => Int) retraso_actual: number;
   @Field() ajuste: string;
+}
+
+// ==========================================
+// NUEVO: Entidad para Machine Learning
+// ==========================================
+@ObjectType()
+export class PrediccionRiesgo {
+  @Field() riesgo_regla_fija: boolean;
+  @Field() riesgo_machine_learning: boolean;
+  @Field(() => Float) exactitud_modelo_ml: number;
 }
 
 @ObjectType()
@@ -43,8 +51,9 @@ export class AnaliticaDashboard {
   @Field(() => [IntencionEuclidiana]) intenciones: IntencionEuclidiana[];
   @Field(() => SeguridadDFS) seguridad_dfs: SeguridadDFS;
   @Field(() => [String]) ruta_bfs_optima: string[];
-  
-  // NUEVOS CAMPOS
   @Field(() => [ContactoUCS]) escalamiento_ucs: ContactoUCS[];
   @Field(() => [IteracionHillClimbing]) optimizacion_hill_climbing: IteracionHillClimbing[];
+  
+  // NUEVO: Campo para la predicción del modelo
+  @Field(() => PrediccionRiesgo) prediccion_riesgo: PrediccionRiesgo;
 }
